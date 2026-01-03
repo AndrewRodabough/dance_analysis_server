@@ -1,0 +1,21 @@
+services:
+  api:
+    image: alphapose_ready
+    build: 
+      context: ./server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server:/workspace/server       # Your FastAPI & Ballroom scripts
+      - ./data:/workspace/data           # Your raw ballroom videos
+      - ./weights:/workspace/weights     # Pretrained AlphaPose models (.pth)
+    working_dir: /workspace/server
+    # Added --root-path to help with FastAPI routing if needed later
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

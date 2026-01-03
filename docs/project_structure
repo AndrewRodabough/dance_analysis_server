@@ -1,0 +1,28 @@
+dance-analysis/ (Root Git Repo)
+├── .git/                        # Git tracking
+├── .gitignore                   # Ignores videos, weights, and node_modules
+│
+├── docker-compose.yml           # The "Grand Orchestrator"
+│
+├── client/                      # FLUTTER APPLICATION (Dart)
+│   ├── lib/                     # Your UI code (screens, widgets)
+│   ├── assets/                  # Icons and images for the app
+│   ├── pubspec.yaml             # Flutter dependencies
+│   └── ... (android/ios/linux)  # Platform-specific build files
+│
+├── server/                      # FASTAPI BACKEND (Python)
+│   ├── app/                     # Your main Python code
+│   │   ├── __init__.py
+│   │   ├── main.py              # API Endpoints (Upload/Status)
+│   │   ├── ballroom_logic.py    # Your proprietary dance math
+│   │   └── pose_engine.py       # Functions to trigger AlphaPose
+│   ├── uploads/                 # (Ignored by Git) Temporary .mp4 storage
+│   ├── Dockerfile               # Inherits FROM alphapose_ready
+│   └── requirements.txt         # FastAPI, Uvicorn, etc.
+│
+├── weights/                     # (Ignored by Git) .pth model files
+│   └── fast_res50_256x192.pth   # Pre-trained AlphaPose weights
+│
+├── data/                        # (Ignored by Git) Raw training/test videos
+│
+└── docs/                        # documentation

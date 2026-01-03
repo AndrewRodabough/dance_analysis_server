@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# Large Media (Crucial!)
+data/
+server/uploads/
+weights/
+*.mp4
+*.pth
+
+# Flutter
+client/.dart_tool/
+client/build/
+client/.packages
