@@ -1,17 +1,28 @@
 services:
-  api:
-    image: alphapose_ready
-    build: 
-      context: ./server
+  mmdeploy:
+    # 1. The new image you requested
+    image: openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy
+    container_name: mmdeploy
+    
+    # 2. Crucial for MMDeploy/PyTorch (taken from your raw command)
+    shm_size: '8gb'
+
+    # 3. Keeps the container running so you can enter it (replaces -it)
+    stdin_open: true
+    tty: true
+
+    # 4. Port mapping (kept from old file in case you run uvicorn later)
     ports:
       - "8000:8000"
+
+    # 5. Your Project Structure (kept from old file)
     volumes:
-      - ./server:/workspace/server       # Your FastAPI & Ballroom scripts
-      - ./data:/workspace/data           # Your raw ballroom videos
-      - ./weights:/workspace/weights     # Pretrained AlphaPose models (.pth)
-    working_dir: /workspace/server
-    # Added --root-path to help with FastAPI routing if needed later
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - ./:/workspace       # MMDeploy workspace
+    
+    # 6. Where you want to land when you log in
+    working_dir: /workspace
+
+    # 7. GPU Reservation (Standard for Nvidia Docker)
     deploy:
       resources:
         reservations:
