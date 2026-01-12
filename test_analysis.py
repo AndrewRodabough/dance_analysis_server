@@ -11,8 +11,8 @@ from mmengine.structures import InstanceData
 from one_euro_filter import OneEuroFilter
 
 # --------------------config-------------------- #
-INPUT_VIDEO = './data/IMG_1057.mov'
-OUTPUT_VIDEO = './data/output_tracked2.mp4'
+INPUT_VIDEO = './data/clip_1.mov'
+OUTPUT_VIDEO = './data/output_tracked5.mp4'
 OUTPUT_CODEC = 'mp4v' # Codec for output video
 
 DET_MODEL = 'rtmdet-l' # Detection model
@@ -24,12 +24,23 @@ MATCH_THRESH = 0.8 # threshold for matching (higher = stricter)
 FRAME_RATE = 30
 DIST_THRESH = 50 # threshold for tracking box to original box
 
-SMOOTH_STATIC = 0.04 # OneEuroFilter static smoothing parameter
-SMOOTH_DYNAMIC = 1 # OneEuroFilter dynamic smoothingparameter
-MOTION_SPEED_THRESH = 1  # pixels per frame threshold between static/dynamic
-# Beta values for static vs dynamic smoothing
-BETA_STATIC = 0.01
-BETA_DYNAMIC = 0.1
+# False positive filtering
+BBOX_CONF_THRESH = 0.5     # minimum bbox detection confidence
+KPT_CONF_THRESH = 0.3      # minimum average keypoint confidence
+MIN_KEYPOINTS_VISIBLE = 5  # minimum visible keypoints to consider valid person
+MIN_TRACK_FRAMES = 3       # frames a track must persist before displaying
+ASPECT_RATIO_MIN = 0.3     # min height/width ratio (filters horizontal objects)
+ASPECT_RATIO_MAX = 4.0     # max height/width ratio (filters vertical objects)
+
+# Smoothing parameters (continuous scale-aware blending)
+SMOOTH_MIN = 0.8    # min_cutoff for slow/static motion
+SMOOTH_MAX = 3.5    # min_cutoff for fast motion
+BETA_MIN = 0.1      # beta for slow/static motion
+BETA_MAX = 1.0      # beta for fast motion
+# Speed scaling (normalized by bbox diagonal)
+SPEED_SCALE_LOW = 0.002   # normalized speed below this → full static smoothing
+SPEED_SCALE_HIGH = 0.015  # normalized speed above this → full dynamic smoothing
+BBOX_SCALE_SMOOTHING = 0.15  # exponential smoothing for bbox size (0.1-0.2 recommended)
 # --------------------end config-------------------- #
 
 def setupInferencer():
@@ -79,9 +90,10 @@ def get_center(bbox):
     """Returns center (x, y) of a bounding box [x1, y1, x2, y2]"""
     return np.array([ (bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2 ])
 
-def compute_speed(prev_kpts: np.ndarray, curr_kpts: np.ndarray) -> float:
-    """Compute average pixel displacement between previous and current keypoints.
-    Shapes expected: (K, 2). Returns mean L2 displacement across visible keypoints.
+def compute_speed(prev_kpts: np.ndarray, curr_kpts: np.ndarray, bbox_scale: float = 1.0) -> float:
+    """Compute average pixel displacement between previous and current keypoints,
+    normalized by bbox_scale for scale invariance.
+    Shapes expected: (K, 2). Returns normalized median L2 displacement.
     """
     if prev_kpts is None or curr_kpts is None:
         return 0.0
@@ -89,8 +101,9 @@ def compute_speed(prev_kpts: np.ndarray, curr_kpts: np.ndarray) -> float:
         return 0.0
     disp = curr_kpts - prev_kpts
     dists = np.linalg.norm(disp, axis=1)
-    # Robust average to avoid outliers
-    return float(np.median(dists))
+    # Robust average to avoid outliers, normalized by bbox scale
+    raw_speed = float(np.median(dists))
+    return raw_speed / max(bbox_scale, 1e-6)
 
 def main():
     # ---- Initialization ---- #
@@ -104,6 +117,8 @@ def main():
     active_tracks = {}
     next_track_id = 0
     prev_keypoints = {}
+    smoothed_bbox_scale = {}  # pose-independent scale per track
+    track_frame_count = {}    # persistence counter for false positive filtering
 
     # Video Setup
     cap = openVideo()
@@ -128,6 +143,36 @@ def main():
         
         # Extract bounding boxes for the tracker.
         raw_predictions = result['predictions'][0] # [{'bbox': [x1,y1,x2,y2], 'bbox_score': 0.9, ...}, ...]
+        
+        # ---- False Positive Filtering ---- #
+        filtered_predictions = []
+        for p in raw_predictions:
+            # 1. Check bbox confidence
+            bbox_score = p.get('bbox_score', [1.0])[0] if isinstance(p.get('bbox_score'), list) else p.get('bbox_score', 1.0)
+            if bbox_score < BBOX_CONF_THRESH:
+                continue
+            
+            # 2. Check keypoint confidence and visibility
+            kpt_scores = p.get('keypoint_scores', [])
+            if len(kpt_scores) > 0:
+                avg_kpt_conf = np.mean(kpt_scores)
+                visible_kpts = np.sum(np.array(kpt_scores) > 0.3)
+                if avg_kpt_conf < KPT_CONF_THRESH or visible_kpts < MIN_KEYPOINTS_VISIBLE:
+                    continue
+            
+            # 3. Check aspect ratio (human body proportions)
+            x1, y1, x2, y2 = p['bbox'][0]
+            width = x2 - x1
+            height = y2 - y1
+            if width <= 0 or height <= 0:
+                continue
+            aspect_ratio = height / width
+            if aspect_ratio < ASPECT_RATIO_MIN or aspect_ratio > ASPECT_RATIO_MAX:
+                continue
+            
+            filtered_predictions.append(p)
+        
+        raw_predictions = filtered_predictions
         
         # ---- Tracking ---- #
         
@@ -173,20 +218,54 @@ def main():
             # Save center for next frame logic
             new_active_tracks[track_id] = current_centers[i]
             
+            # Update track persistence counter
+            if track_id not in track_frame_count:
+                track_frame_count[track_id] = 1
+            else:
+                track_frame_count[track_id] += 1
+            
+            # Skip rendering if track hasn't persisted long enough (likely false positive)
+            if track_frame_count[track_id] < MIN_TRACK_FRAMES:
+                continue
+            
             # 3. Apply Smoothing
             if track_id not in smoothing_filters:
-                # Initialize OneEuroFilter for this new ID
-                smoothing_filters[track_id] = OneEuroFilter(min_cutoff=SMOOTH_STATIC, beta=BETA_DYNAMIC, freq=fps if fps > 0 else FRAME_RATE)
+                # Initialize OneEuroFilter for this new ID with starting parameters
+                smoothing_filters[track_id] = OneEuroFilter(min_cutoff=SMOOTH_MIN, beta=BETA_MIN, freq=fps if fps > 0 else FRAME_RATE)
             
             raw_kpts = np.array(person['keypoints'])
-            # Extract motion parameters based on speed
-            speed = compute_speed(prev_keypoints.get(track_id), raw_kpts)
-            if speed < MOTION_SPEED_THRESH:
-                smoothing_filters[track_id].min_cutoff = SMOOTH_STATIC
-                smoothing_filters[track_id].beta = BETA_STATIC
+            
+            # Compute bbox diagonal
+            x1, y1, x2, y2 = person['bbox'][0]
+            bbox_diagonal = math.hypot(x2 - x1, y2 - y1)
+            
+            # Apply exponential smoothing to bbox scale to ignore pose-based size changes
+            # (arms out/in shouldn't affect speed normalization)
+            if track_id not in smoothed_bbox_scale:
+                smoothed_bbox_scale[track_id] = bbox_diagonal
             else:
-                smoothing_filters[track_id].min_cutoff = SMOOTH_DYNAMIC
-                smoothing_filters[track_id].beta = BETA_DYNAMIC
+                smoothed_bbox_scale[track_id] = (
+                    BBOX_SCALE_SMOOTHING * bbox_diagonal + 
+                    (1 - BBOX_SCALE_SMOOTHING) * smoothed_bbox_scale[track_id]
+                )
+            
+            # Use smoothed scale for speed normalization
+            speed_norm = compute_speed(prev_keypoints.get(track_id), raw_kpts, smoothed_bbox_scale[track_id])
+            
+            # Continuous parameter blending based on normalized speed
+            # Use smooth interpolation (clamp between 0 and 1)
+            if speed_norm <= SPEED_SCALE_LOW:
+                blend = 0.0
+            elif speed_norm >= SPEED_SCALE_HIGH:
+                blend = 1.0
+            else:
+                # Linear interpolation between low and high
+                blend = (speed_norm - SPEED_SCALE_LOW) / (SPEED_SCALE_HIGH - SPEED_SCALE_LOW)
+            
+            # Apply blended parameters
+            smoothing_filters[track_id].min_cutoff = SMOOTH_MIN + blend * (SMOOTH_MAX - SMOOTH_MIN)
+            smoothing_filters[track_id].beta = BETA_MIN + blend * (BETA_MAX - BETA_MIN)
+            
             smoothed_kpts = smoothing_filters[track_id](raw_kpts)
             person['keypoints'] = smoothed_kpts.tolist()
             person['track_id'] = track_id
