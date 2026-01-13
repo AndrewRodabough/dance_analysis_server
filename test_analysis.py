@@ -11,8 +11,9 @@ from mmengine.structures import InstanceData
 from one_euro_filter import OneEuroFilter
 
 # --------------------config-------------------- #
+
 INPUT_VIDEO = './data/clip_1.mov'
-OUTPUT_VIDEO = './data/output_tracked5.mp4'
+OUTPUT_VIDEO = './data/output_tracked7.mp4'
 OUTPUT_CODEC = 'mp4v' # Codec for output video
 
 DET_MODEL = 'rtmdet-l' # Detection model
@@ -25,22 +26,24 @@ FRAME_RATE = 30
 DIST_THRESH = 50 # threshold for tracking box to original box
 
 # False positive filtering
-BBOX_CONF_THRESH = 0.5     # minimum bbox detection confidence
-KPT_CONF_THRESH = 0.3      # minimum average keypoint confidence
-MIN_KEYPOINTS_VISIBLE = 5  # minimum visible keypoints to consider valid person
+BBOX_CONF_THRESH = 0.45     # minimum bbox detection confidence
+KPT_CONF_THRESH = 0.27      # minimum average keypoint confidence
+MIN_KEYPOINTS_VISIBLE = 6  # minimum visible keypoints to consider valid person
 MIN_TRACK_FRAMES = 3       # frames a track must persist before displaying
-ASPECT_RATIO_MIN = 0.3     # min height/width ratio (filters horizontal objects)
-ASPECT_RATIO_MAX = 4.0     # max height/width ratio (filters vertical objects)
+ASPECT_RATIO_MIN = 0.25     # min height/width ratio (filters horizontal objects)
+ASPECT_RATIO_MAX = 5     # max height/width ratio (filters vertical objects)
 
 # Smoothing parameters (continuous scale-aware blending)
 SMOOTH_MIN = 0.8    # min_cutoff for slow/static motion
 SMOOTH_MAX = 3.5    # min_cutoff for fast motion
 BETA_MIN = 0.1      # beta for slow/static motion
 BETA_MAX = 1.0      # beta for fast motion
+
 # Speed scaling (normalized by bbox diagonal)
 SPEED_SCALE_LOW = 0.002   # normalized speed below this → full static smoothing
 SPEED_SCALE_HIGH = 0.015  # normalized speed above this → full dynamic smoothing
 BBOX_SCALE_SMOOTHING = 0.15  # exponential smoothing for bbox size (0.1-0.2 recommended)
+
 # --------------------end config-------------------- #
 
 def setupInferencer():
