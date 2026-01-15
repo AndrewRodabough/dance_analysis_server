@@ -1,8 +1,2 @@
-# Running Client
-
-cd client
-flutter run
-
-
 # Running Server
 docker compose up
