@@ -1,28 +1,26 @@
 services:
   mmdeploy:
-    # 1. The new image you requested
     image: openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy
     container_name: mmdeploy
     
-    # 2. Crucial for MMDeploy/PyTorch (taken from your raw command)
+    # ram allocated
     shm_size: '8gb'
 
-    # 3. Keeps the container running so you can enter it (replaces -it)
+    # Keeps container running
     stdin_open: true
     tty: true
 
-    # 4. Port mapping (kept from old file in case you run uvicorn later)
     ports:
       - "8000:8000"
 
-    # 5. Your Project Structure (kept from old file)
+    # Project Structure
     volumes:
-      - ./:/workspace       # MMDeploy workspace
+      - ./:/workspace       # mounts server repo to /workspace in container
     
-    # 6. Where you want to land when you log in
+    # Working directory inside the container
     working_dir: /workspace
 
-    # 7. GPU Reservation (Standard for Nvidia Docker)
+    # GPU Reservation (Standard for Nvidia Docker)
     deploy:
       resources:
         reservations:

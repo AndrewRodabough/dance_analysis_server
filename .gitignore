@@ -4,13 +4,7 @@ __pycache__/
 .env
 
 # Large Media (Crucial!)
-data/
-server/uploads/
+uploads/
 weights/
 *.mp4
 *.pth
-
-# Flutter
-client/.dart_tool/
-client/build/
-client/.packages

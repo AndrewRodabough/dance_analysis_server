@@ -1,2 +1,0 @@
-# Running Server
-docker compose up

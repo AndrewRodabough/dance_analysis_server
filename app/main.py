@@ -1,23 +1,16 @@
-from fastapi import FastAPI, UploadFile, File
-import os
+from fastapi import FastAPI
 
-app = FastAPI()
+from app.api.v1 import analyze, health
 
-# Create an uploads folder if it doesn't exist
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@app.get("/")
-def read_root():
-    return {"message": "Ballroom AI Engine is Online"}
+def create_app() -> FastAPI:
+    """Application factory to build the FastAPI app."""
 
-@app.post("/upload-video")
-async def upload_video(file: UploadFile = File(...)):
-    file_location = f"{UPLOAD_DIR}/{file.filename}"
-    with open(file_location, "wb") as f:
-        f.write(await file.read())
-    
-    return {
-        "info": f"Video '{file.filename}' saved at '{file_location}'",
-        "status": "Ready for AlphaPose analysis"
-    }
+    app = FastAPI(title="Dance Analysis API", version="1.0.0")
+    app.include_router(health.router)
+    app.include_router(analyze.router)
+
+    return app
+
+
+app = create_app()
