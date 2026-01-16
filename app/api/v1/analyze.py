@@ -1,6 +1,7 @@
 """Video upload endpoints."""
 
 from pathlib import Path
+from typing import Dict
 
 from fastapi import APIRouter, File, UploadFile
 
@@ -11,7 +12,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("/analyze", summary="Upload a video for analysis")
-async def upload_video(file: UploadFile = File(...)) -> dict[str, str]:
+async def upload_video(file: UploadFile = File(...)) -> Dict[str, str]:
     file_location = UPLOAD_DIR / file.filename
     file_location.write_bytes(await file.read())
 

@@ -1,22 +1,26 @@
 services:
-  mmdeploy:
-    image: openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy
-    container_name: mmdeploy
+  dance_server:
+    
+    # build container from Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: dance_analysis_server
     
     # ram allocated
     shm_size: '8gb'
 
-    # Keeps container running
-    stdin_open: true
-    tty: true
+    # Project Structure
+    volumes:
+      - ./:/workspace       # mounts repo to /workspace in container
+    
+    # override CMD in docerfile to enable hot-reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
     ports:
       - "8000:8000"
 
-    # Project Structure
-    volumes:
-      - ./:/workspace       # mounts server repo to /workspace in container
-    
     # Working directory inside the container
     working_dir: /workspace
 
