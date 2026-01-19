@@ -8,7 +8,8 @@ from pathlib import Path
 
 from mmpose.structures import PoseDataSample
 from mmengine.structures import InstanceData
-from mmdet.apis import init_detector, inference_mot
+from mmdet.apis import init_detector
+from mmdet.structures import DetDataSample
 from mmpose.apis import init_model as init_pose_model
 from mmpose.apis import inference_topdown
 from mmpose.utils import register_all_modules
@@ -23,9 +24,10 @@ class PoseEstimationPipeline:
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
 
-        self.detection_model = init_detector(self.config['detection_tracking']['config'],
-                                            self.config['detection_tracking']['checkpoint'],
-                                            device='cuda:0')
+        self.detection_model = init_detector(
+            self.config['detection_tracking']['config'],
+            self.config['detection_tracking']['checkpoint'],
+            device='cuda:0')
         self.pose_model = init_pose_model(self.config['pose_estimation']['config'],
                                           self.config['pose_estimation']['checkpoint'],
                                           device='cuda:0')
@@ -38,7 +40,10 @@ class PoseEstimationPipeline:
         register_all_modules()
 
         # Open video
-        cap = self._open_video(filepath_in) 
+        cap = self._open_video(filepath_in)
+        
+        # Get video length
+        video_len = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Process video frames
         frame_idx = 0
@@ -48,7 +53,7 @@ class PoseEstimationPipeline:
             ret, frame = cap.read()
             if not ret: break
 
-            estimation_2d_frame, estimation_3d_frame = self._process_frame(frame, frame_idx)
+            estimation_2d_frame, estimation_3d_frame = self._process_frame(frame, frame_idx, video_len)
             estimation_2d.append(estimation_2d_frame)
             estimation_3d.append(estimation_3d_frame)
             frame_idx += 1
@@ -73,10 +78,10 @@ class PoseEstimationPipeline:
     
 
 
-    def _process_frame(self, frame, frame_idx):
+    def _process_frame(self, frame, frame_idx, video_len):
 
         # Detection & Tracking        
-        track_results = self._detect_track(frame, frame_idx)
+        track_results = self._detect_track(frame, frame_idx, video_len)
 
         # 2d pose estimation
         estimation_2d = self._estimate(frame, track_results)
@@ -90,19 +95,95 @@ class PoseEstimationPipeline:
         return estimation_2d_smooth, estimation_3d
     
 
-    def _detect_track(self, frame, frame_idx):
-        # Bounding boxes & tracking
-        track_results = inference_mot(self.detection_model, frame, frame_id=frame_idx)
-        pred_instances = track_results.pred_track_instances
-        track_mask = pred_instances.scores > self.config['detection_tracking']['track_thresh'] # filter low confidence tracks
-
-        if track_mask.any():
-            tracks = InstanceData()
-            tracks.bboxes = pred_instances.bboxes[track_mask].cpu().numpy()
-            tracks.scores = pred_instances.scores[track_mask].cpu().numpy()
-            tracks.labels = pred_instances.labels[track_mask].cpu().numpy()
-            tracks.track_ids = pred_instances.track_ids[track_mask].cpu().numpy()
-            return tracks
+    def _detect_track(self, frame, frame_idx, video_len):
+        # Prepare the input for detection model
+        # The model expects data in specific format with 'inputs' key
+        h, w = frame.shape[:2]
+        
+        # Resize frame to model input size while keeping aspect ratio
+        target_size = 640
+        scale = target_size / max(h, w)
+        new_w, new_h = int(w * scale), int(h * scale)
+        resized = cv2.resize(frame, (new_w, new_h))
+        
+        # Pad to square
+        padded = np.full((target_size, target_size, 3), 114, dtype=np.uint8)
+        padded[:new_h, :new_w] = resized
+        
+        # Convert to tensor: HWC -> CHW, BGR stays BGR (model expects BGR)
+        img_tensor = torch.from_numpy(padded).permute(2, 0, 1).float().unsqueeze(0).to('cuda:0')
+        
+        # Create data sample with image metadata
+        data_sample = DetDataSample()
+        data_sample.set_metainfo({
+            'img_shape': (target_size, target_size),
+            'ori_shape': (h, w),
+            'scale_factor': (scale, scale),
+            'pad_shape': (target_size, target_size),
+        })
+        
+        # Prepare batch data in the format expected by the model
+        data = {
+            'inputs': img_tensor,
+            'data_samples': [data_sample]
+        }
+        
+        # Run inference
+        with torch.no_grad():
+            # Use data_preprocessor to normalize
+            data = self.detection_model.data_preprocessor(data, False)
+            results = self.detection_model._run_forward(data, mode='predict')
+        
+        if results and len(results) > 0:
+            result = results[0]
+            pred_instances = result.pred_instances
+            
+            if hasattr(pred_instances, 'scores') and len(pred_instances.scores) > 0:
+                # Check if bboxes are already in original space or scaled space
+                bboxes = pred_instances.bboxes.clone()
+                
+                if frame_idx == 0:  # Debug first frame
+                    print(f"Raw bboxes from model: {bboxes.cpu().numpy()}")
+                    print(f"Scale factor: {scale}, Frame size: {w}x{h}")
+                
+                # If max bbox coordinate is close to 640, they're in scaled space
+                # If it's close to original size, they're already in original space  
+                max_coord = bboxes.max().item()
+                if max_coord < 800:  # Likely in 640x640 space
+                    bboxes = bboxes / scale
+                    if frame_idx == 0:
+                        print(f"Bboxes were in scaled space, converting to original: {bboxes.cpu().numpy()}")
+                else:
+                    if frame_idx == 0:
+                        print("Bboxes already in original space")
+                
+                # Expand bboxes by 10% on each side to avoid clipping body parts
+                bbox_w = bboxes[:, 2] - bboxes[:, 0]
+                bbox_h = bboxes[:, 3] - bboxes[:, 1]
+                expand_ratio = 0.1
+                bboxes[:, 0] -= bbox_w * expand_ratio
+                bboxes[:, 1] -= bbox_h * expand_ratio
+                bboxes[:, 2] += bbox_w * expand_ratio
+                bboxes[:, 3] += bbox_h * expand_ratio
+                
+                # Clip bboxes to frame boundaries after expansion
+                bboxes[:, [0, 2]] = torch.clamp(bboxes[:, [0, 2]], 0, w)
+                bboxes[:, [1, 3]] = torch.clamp(bboxes[:, [1, 3]], 0, h)
+                
+                if frame_idx == 0:  # Debug first frame
+                    print(f"Bboxes after clipping: {bboxes.cpu().numpy()}")
+                
+                # Filter by confidence and only keep person class (label 0)
+                conf_thresh = self.config['detection_tracking']['confidence_threshold']
+                person_mask = (pred_instances.labels == 0) & (pred_instances.scores > conf_thresh)
+                
+                if person_mask.any():
+                    tracks = InstanceData()
+                    tracks.bboxes = bboxes[person_mask].cpu().numpy()
+                    tracks.scores = pred_instances.scores[person_mask].cpu().numpy()
+                    tracks.labels = pred_instances.labels[person_mask].cpu().numpy()
+                    tracks.track_ids = np.arange(len(tracks.bboxes))
+                    return tracks
         
         return None
 
@@ -110,14 +191,47 @@ class PoseEstimationPipeline:
         if track_results is None:
             return []
 
+        # Debug: check bboxes
+        if hasattr(self, '_first_estimate'):
+            pass
+        else:
+            self._first_estimate = True
+            print(f"Frame shape: {frame.shape}")
+            print(f"Number of detected people: {len(track_results.bboxes)}")
+            print(f"Bboxes: {track_results.bboxes}")
+            print(f"Bbox scores: {track_results.scores}")
+
         pose_results = inference_topdown(self.pose_model, frame, track_results.bboxes)
 
         poses_2d = []
         for i, res in enumerate(pose_results):
+            # Handle both tensor and numpy array cases
+            keypoints = res.pred_instances.keypoints
+            scores = res.pred_instances.keypoint_scores
+            
+            if hasattr(keypoints, 'cpu'):
+                keypoints = keypoints.cpu().numpy()
+            if hasattr(scores, 'cpu'):
+                scores = scores.cpu().numpy()
+            
+            # Remove batch dimension if present
+            if len(keypoints.shape) == 3:
+                keypoints = keypoints[0]  # (1, 133, 2) -> (133, 2)
+            if len(scores.shape) == 2:
+                scores = scores[0]  # (1, 133) -> (133,)
+            
+            if not hasattr(self, '_first_pose_debug'):
+                self._first_pose_debug = True
+                print(f"Raw keypoints from model shape: {res.pred_instances.keypoints.shape}")
+                print(f"After processing keypoints shape: {keypoints.shape}")
+                print(f"Sample keypoints: {keypoints[:5]}")
+                print(f"Sample scores: {scores[:5]}")
+                
             poses_2d.append({
                 'track_id': int(track_results.track_ids[i]),
-                'keypoints': res.pred_instances.keypoints.cpu().numpy(),
-                'scores': res.pred_instances.keypoint_scores.cpu().numpy()
+                'keypoints': keypoints,
+                'scores': scores,
+                'bbox': track_results.bboxes[i] if i < len(track_results.bboxes) else None
             })
 
         return poses_2d

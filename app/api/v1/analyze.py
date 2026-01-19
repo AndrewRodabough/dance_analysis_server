@@ -19,5 +19,5 @@ async def upload_video(file: UploadFile = File(...)) -> Dict[str, str]:
 
     return {
         "info": f"Video '{file.filename}' saved at '{file_location}'",
-        "status": "Ready for AlphaPose analysis",
+        "status": "Analysis Complete",
     }
