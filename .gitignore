@@ -5,6 +5,6 @@ __pycache__/
 
 # Large Media (Crucial!)
 uploads/
-weights/
+models/checkpoints/
 *.mp4
 *.pth

@@ -1,0 +1,23 @@
+detection_tracking:
+  detection_model: rtmdet
+  tracking_config: ocsort
+  config: /configs/rtmdet_l.py
+  checkpoint: /models/checkpoints/rtmdet_l.pth
+  confidence_threshold: 0.5
+
+pose_estimation:
+  model: dwpose
+  checkpoint: /models/checkpoints/dw-ll_ucoco_384.pth
+  config: /models/configs/rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288.py
+
+pose_lifter:
+  model: rtmpose3d
+  checkpoint: /models/checkpoints/rtmw3d-l_8xb64_cocktail14-384x288-794dbc78_20240626.pth
+  config: /models/configs/rtmw3d-l_8xb64_cocktail14-384x288.py
+
+
+smoothing:
+  enabled: true
+  method: gaussian  # or kalman, savgol, etc.
+  window_size: 5
+  sigma: 1.0

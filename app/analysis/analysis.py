@@ -1,11 +1,10 @@
-from app.analysis.pose_generation.pose_generation import pose_generation 
+from app.analysis.pose_estimation.pose_estimation import pose_estimation 
 
 def analyze_video(filepath: str):
-    """Placeholder function to simulate video analysis."""
     print(f"Analyzing video: {filepath}")
 
     # pose processing
-    results_2d, results_3d = pose_generation(filepath)
+    estimation_2d, estimation_3d = pose_estimation(filepath)
 
     # other data / features Extraction
 
