@@ -28,9 +28,12 @@ class PoseEstimationPipeline:
             self.config['detection_tracking']['config'],
             self.config['detection_tracking']['checkpoint'],
             device='cuda:0')
-        self.pose_model = init_pose_model(self.config['pose_estimation']['config'],
-                                          self.config['pose_estimation']['checkpoint'],
-                                          device='cuda:0')
+        
+        self.pose_model = init_pose_model(
+            self.config['pose_estimation']['config'],
+            self.config['pose_estimation']['checkpoint'],
+            device='cuda:0')
+        
         self.pose_history = {}  # track_id -> list of keypoints for temporal smoothing
 
     def pose_estimation(self, filepath_in: str):
@@ -41,8 +44,6 @@ class PoseEstimationPipeline:
 
         # Open video
         cap = self._open_video(filepath_in)
-        
-        # Get video length
         video_len = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Process video frames
@@ -53,7 +54,10 @@ class PoseEstimationPipeline:
             ret, frame = cap.read()
             if not ret: break
 
+            # Estimate poses
             estimation_2d_frame, estimation_3d_frame = self._process_frame(frame, frame_idx, video_len)
+            
+            # Store results
             estimation_2d.append(estimation_2d_frame)
             estimation_3d.append(estimation_3d_frame)
             frame_idx += 1
@@ -61,7 +65,6 @@ class PoseEstimationPipeline:
         cap.release()
         return estimation_2d, estimation_3d
     
-
     def _open_video(self, filepath_in):
         if not os.path.exists(filepath_in):
             print(f"[ERROR] File not found at: {filepath_in}")
@@ -76,8 +79,6 @@ class PoseEstimationPipeline:
         
         return cap
     
-
-
     def _process_frame(self, frame, frame_idx, video_len):
 
         # Detection & Tracking        
@@ -92,9 +93,11 @@ class PoseEstimationPipeline:
         # Lifting 2d->3d (placeholder)
         estimation_3d = None  # Placeholder for lifting function
 
-        return estimation_2d_smooth, estimation_3d
-    
+        # Smoothing 3d (placeholder)
+        estimation_3d_smooth = None  # Placeholder for smoothing function
 
+        return estimation_2d_smooth, estimation_3d_smooth
+    
     def _detect_track(self, frame, frame_idx, video_len):
         # Prepare the input for detection model
         # The model expects data in specific format with 'inputs' key
@@ -142,25 +145,16 @@ class PoseEstimationPipeline:
                 # Check if bboxes are already in original space or scaled space
                 bboxes = pred_instances.bboxes.clone()
                 
-                if frame_idx == 0:  # Debug first frame
-                    print(f"Raw bboxes from model: {bboxes.cpu().numpy()}")
-                    print(f"Scale factor: {scale}, Frame size: {w}x{h}")
+                # Debug: bboxes data on first frame
+                if (self.config.get('debug', {}) .get('console_logs', True)):
+                    if frame_idx == 0:  # Debug first frame
+                        print(f"Raw bboxes from model: {bboxes.cpu().numpy()}")
+                        print(f"Scale factor: {scale}, Frame size: {w}x{h}")
                 
-                # If max bbox coordinate is close to 640, they're in scaled space
-                # If it's close to original size, they're already in original space  
-                max_coord = bboxes.max().item()
-                if max_coord < 800:  # Likely in 640x640 space
-                    bboxes = bboxes / scale
-                    if frame_idx == 0:
-                        print(f"Bboxes were in scaled space, converting to original: {bboxes.cpu().numpy()}")
-                else:
-                    if frame_idx == 0:
-                        print("Bboxes already in original space")
-                
-                # Expand bboxes by 10% on each side to avoid clipping body parts
+                # Expand bboxes by configured scale factor to avoid clipping body parts
                 bbox_w = bboxes[:, 2] - bboxes[:, 0]
                 bbox_h = bboxes[:, 3] - bboxes[:, 1]
-                expand_ratio = 0.1
+                expand_ratio = self.config['detection_tracking']['bbox_scale'] - 1
                 bboxes[:, 0] -= bbox_w * expand_ratio
                 bboxes[:, 1] -= bbox_h * expand_ratio
                 bboxes[:, 2] += bbox_w * expand_ratio
@@ -170,8 +164,10 @@ class PoseEstimationPipeline:
                 bboxes[:, [0, 2]] = torch.clamp(bboxes[:, [0, 2]], 0, w)
                 bboxes[:, [1, 3]] = torch.clamp(bboxes[:, [1, 3]], 0, h)
                 
-                if frame_idx == 0:  # Debug first frame
-                    print(f"Bboxes after clipping: {bboxes.cpu().numpy()}")
+                # Debug: clipped bboxes data on first frame
+                if (self.config.get('debug', {}) .get('console_logs', True)):
+                    if frame_idx == 0:  # Debug first frame
+                        print(f"Bboxes after clipping: {bboxes.cpu().numpy()}")
                 
                 # Filter by confidence and only keep person class (label 0)
                 conf_thresh = self.config['detection_tracking']['confidence_threshold']
@@ -191,18 +187,21 @@ class PoseEstimationPipeline:
         if track_results is None:
             return []
 
-        # Debug: check bboxes
-        if hasattr(self, '_first_estimate'):
-            pass
-        else:
-            self._first_estimate = True
-            print(f"Frame shape: {frame.shape}")
-            print(f"Number of detected people: {len(track_results.bboxes)}")
-            print(f"Bboxes: {track_results.bboxes}")
-            print(f"Bbox scores: {track_results.scores}")
+        # Debug: check bboxes data on first frame
+        if (self.config.get('debug', {}) .get('console_logs', True)):
+            if hasattr(self, '_first_estimate'):
+                pass
+            else:
+                self._first_estimate = True
+                print(f"Frame shape: {frame.shape}")
+                print(f"Number of detected people: {len(track_results.bboxes)}")
+                print(f"Bboxes: {track_results.bboxes}")
+                print(f"Bbox scores: {track_results.scores}")
 
+        # 2D Pose Estimation
         pose_results = inference_topdown(self.pose_model, frame, track_results.bboxes)
 
+        # Parse results
         poses_2d = []
         for i, res in enumerate(pose_results):
             # Handle both tensor and numpy array cases
@@ -220,13 +219,15 @@ class PoseEstimationPipeline:
             if len(scores.shape) == 2:
                 scores = scores[0]  # (1, 133) -> (133,)
             
-            if not hasattr(self, '_first_pose_debug'):
-                self._first_pose_debug = True
-                print(f"Raw keypoints from model shape: {res.pred_instances.keypoints.shape}")
-                print(f"After processing keypoints shape: {keypoints.shape}")
-                print(f"Sample keypoints: {keypoints[:5]}")
-                print(f"Sample scores: {scores[:5]}")
-                
+            # Debug: check keypoints data on first frame
+            if (self.config.get('debug', {}) .get('console_logs', True)):
+                if not hasattr(self, '_first_pose_debug'):
+                    self._first_pose_debug = True
+                    print(f"Raw keypoints from model shape: {res.pred_instances.keypoints.shape}")
+                    print(f"After processing keypoints shape: {keypoints.shape}")
+                    print(f"Sample keypoints: {keypoints[:5]}")
+                    print(f"Sample scores: {scores[:5]}")
+                    
             poses_2d.append({
                 'track_id': int(track_results.track_ids[i]),
                 'keypoints': keypoints,
