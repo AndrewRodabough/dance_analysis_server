@@ -1,5 +1,5 @@
 # base image
-FROM openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy
+FROM ubuntu:latest
 
 # Environment Variables
 # Prevents Python from buffering stdout/stderr (logs appear immediately)
