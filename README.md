@@ -26,9 +26,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 For full pipeline with actual pose estimation:
 
+#### With NVIDIA GPU
 ```bash
-# Build and start with GPU support
-docker-compose up --build
+docker compose --profile nvidia up
+```
+
+#### With AMD GPU
+```bash
+docker compose --profile amd up
+```
+
+#### CPU Only
+```bash
+docker compose --profile cpu up
 ```
 
 ## API Endpoints

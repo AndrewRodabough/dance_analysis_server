@@ -1,30 +1,30 @@
+x-common-config: &common
+  image: dance_analysis_server:latest
+  shm_size: '8gb'
+  volumes:
+    - ./:/workspace
+  command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  ports:
+    - "8000:8000"
+  working_dir: /workspace
+
 services:
-  dance_server:
-    
-    # build container from Dockerfile
+  # Build the shared image once
+  dance_server_build:
     build:
       context: .
       dockerfile: Dockerfile
-    
-    container_name: dance_analysis_server
-    
-    # ram allocated
-    shm_size: '8gb'
+    image: dance_analysis_server:latest
+    profiles: ["build"]
+    command: "true"
 
-    # Project Structure
-    volumes:
-      - ./:/workspace       # mounts repo to /workspace in container
-    
-    # override CMD in docerfile to enable hot-reload
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-    ports:
-      - "8000:8000"
-
-    # Working directory inside the container
-    working_dir: /workspace
-
-    # GPU Reservation (Standard for Nvidia Docker)
+  # NVIDIA GPU Configuration
+  dance_server_nvidia:
+    <<: *common
+    container_name: dance_analysis_server_nvidia
+    profiles: ["nvidia"]
+    environment:
+      - DEVICE_TYPE=cuda
     deploy:
       resources:
         reservations:
@@ -32,3 +32,24 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # AMD GPU Configuration  
+  dance_server_amd:
+    <<: *common
+    container_name: dance_analysis_server_amd
+    profiles: ["amd"]
+    environment:
+      - DEVICE_TYPE=rocm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+
+  # CPU-only Configuration
+  dance_server_cpu:
+    <<: *common
+    container_name: dance_analysis_server_cpu
+    profiles: ["cpu"]
+    environment:
+      - DEVICE_TYPE=cpu

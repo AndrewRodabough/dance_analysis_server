@@ -1,9 +1,11 @@
+numpy
 fastapi
 uvicorn[standard]
 python-multipart
-mmpose
-mmdet
 mmengine
 opencv-python
 numpy
-mediapipe
+mmdet
+mmpose
+rtmpose3d
+one-euro-filter
