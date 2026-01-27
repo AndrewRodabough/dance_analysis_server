@@ -6,3 +6,4 @@ mmdet
 mmengine
 opencv-python
 numpy
+mediapipe
