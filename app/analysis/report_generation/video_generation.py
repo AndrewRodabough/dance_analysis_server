@@ -199,7 +199,7 @@ def draw_skeleton(frame, person_data, debug=False):
     return frame
 
 
-def generate_visualization_videos(filepath: str, keypoints_2d_list: list, keypoints_3d_list: list, output_dir: Path):
+def generate_visualization_videos(filepath: str, keypoints_2d_list: list, keypoints_3d_list: list, output_dir: str):
     """Generate 2D and 3D visualization videos"""
     # Restructure keypoints data for visualization
     estimation_2d, estimation_3d = _restructure_keypoints(keypoints_2d_list, keypoints_3d_list)
@@ -222,7 +222,7 @@ def generate_visualization_videos(filepath: str, keypoints_2d_list: list, keypoi
     print(f"Estimation data has {len(estimation_2d)} frames")
     
     # Create video writer with XVID codec (more compatible)
-    output_path = output_dir / "pose_visualization.avi"
+    output_path = Path(output_dir) / "pose_visualization.avi"
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
     
@@ -277,7 +277,7 @@ def generate_visualization_videos(filepath: str, keypoints_2d_list: list, keypoi
         return
     
     # Create side-by-side video
-    output_path_3d = output_dir / "pose_visualization_3d_sidebyside.avi"
+    output_path_3d = Path(output_dir) / "pose_visualization_3d_sidebyside.avi"
     
     # Read first frame to determine 3D visualization size
     ret, first_frame = cap.read()

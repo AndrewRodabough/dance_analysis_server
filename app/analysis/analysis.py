@@ -4,11 +4,12 @@ import numpy as np
 from pathlib import Path
 from app.analysis.pose_estimation.pose_estimation import pose_estimation
 from app.analysis.mock_analysis import analyze_video_mock
+from app.analysis.report_generation.video_generation import generate_visualization_videos
 
 # Toggle between real and mock analysis via environment variable
 USE_MOCK = os.getenv("USE_MOCK_ANALYSIS", "false").lower() == "true"
 
-def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs'):
+def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs', generate_video: bool = True):
     # Use mock analysis if enabled (for local development without GPU)
     if USE_MOCK:
         return analyze_video_mock(filepath, save_keypoints_path)
@@ -20,6 +21,8 @@ def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs'):
 
     if save_keypoints_path != '':
         save_keypoints_to_json(save_keypoints_path, keypoints_2d_list, keypoints_3d_list)
+        if generate_video:
+            generate_visualization_videos(filepath, keypoints_2d_list, keypoints_3d_list, save_keypoints_path)
 
     # data / features Extraction
 
@@ -28,6 +31,8 @@ def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs'):
 
 
     # report generation
+
+
 
 
 def save_keypoints_to_json(folder_path: str, keypoints_2d, keypoints_3d):
