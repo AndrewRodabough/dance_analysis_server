@@ -11,7 +11,7 @@ USE_MOCK = os.getenv("USE_MOCK_ANALYSIS", "false").lower() == "true"
 def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs'):
     # Use mock analysis if enabled (for local development without GPU)
     if USE_MOCK:
-        return analyze_video_mock(filepath)
+        return analyze_video_mock(filepath, save_keypoints_path)
     
     print(f"Analyzing video: {filepath}")
 

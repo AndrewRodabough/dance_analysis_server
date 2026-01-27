@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 
-def analyze_video_mock(filepath: str):
+def analyze_video_mock(filepath: str, save_keypoints_path: str):
     """
     Mock video analysis that returns fake pose data without running actual models.
     Useful for API development without GPU/Docker dependencies.
@@ -21,8 +21,8 @@ def analyze_video_mock(filepath: str):
     time.sleep(0.5)
     
     # Create output directory
-    test_scripts_dir = Path("test_outputs")
-    test_scripts_dir.mkdir(exist_ok=True)
+    output_dir = Path(save_keypoints_path)
+    output_dir.mkdir(exist_ok=True)
     
     # Generate mock 2D pose data
     # MediaPipe outputs 33 keypoints per person per frame
@@ -57,20 +57,20 @@ def analyze_video_mock(filepath: str):
         mock_3d_data.append(frame_keypoints)
     
     # Save 2D estimation
-    estimation_2d_path = test_scripts_dir / "estimation_2d.json"
+    estimation_2d_path = output_dir / "estimation_2d.json"
     with open(estimation_2d_path, "w") as f:
         json.dump(mock_2d_data, f, indent=2)
     print(f"[MOCK] Saved 2D estimation to {estimation_2d_path}")
     
     # Save 3D estimation
-    estimation_3d_path = test_scripts_dir / "estimation_3d.json"
+    estimation_3d_path = output_dir / "estimation_3d.json"
     with open(estimation_3d_path, "w") as f:
         json.dump(mock_3d_data, f, indent=2)
     print(f"[MOCK] Saved 3D estimation to {estimation_3d_path}")
     
     # Create dummy video files (empty files to simulate output)
-    video_2d_path = test_scripts_dir / "pose_visualization.avi"
-    video_3d_path = test_scripts_dir / "pose_visualization_3d_sidebyside.avi"
+    video_2d_path = output_dir / "pose_visualization.avi"
+    video_3d_path = output_dir / "pose_visualization_3d_sidebyside.avi"
     
     video_2d_path.touch()
     video_3d_path.touch()
