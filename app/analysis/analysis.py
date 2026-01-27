@@ -1,10 +1,19 @@
 import json
+import os
 import numpy as np
 from pathlib import Path
 from app.analysis.pose_estimation.pose_estimation import pose_estimation
 from app.analysis.video_generation import generate_visualization_videos
+from app.analysis.mock_analysis import analyze_video_mock
+
+# Toggle between real and mock analysis via environment variable
+USE_MOCK = os.getenv("USE_MOCK_ANALYSIS", "false").lower() == "true"
 
 def analyze_video(filepath: str):
+    # Use mock analysis if enabled (for local development without GPU)
+    if USE_MOCK:
+        return analyze_video_mock(filepath)
+    
     print(f"Analyzing video: {filepath}")
 
     # pose processing (with smoothing applied)

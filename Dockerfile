@@ -9,6 +9,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # System Dependencies (The "Heavy" Layer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
     ffmpeg \
     libgl1 \
     libglib2.0-0 \
@@ -20,7 +22,8 @@ WORKDIR /workspace
 
 # Install Python dependencies: FastAPI stack plus MMPose via OpenMMLab
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --upgrade pip --break-system-packages && \
+    python3 -m pip install --no-cache-dir -r requirements.txt --break-system-packages
 
 
 # Copy the rest of the application code

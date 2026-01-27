@@ -1,0 +1,22 @@
+[
+    [ Frame 1
+        [ Person
+            [ Coordinates, 133 points per pose
+            ],
+            [],
+            ...
+            
+        ]
+    ],
+    [ Frame 2
+        [ Person
+            [ 133 Points
+            ]
+        ],
+        [Person 2
+            [133 points
+            ]
+        ],
+    ],
+    [ Frame ...],
+]
