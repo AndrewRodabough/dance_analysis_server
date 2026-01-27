@@ -21,7 +21,7 @@ def analyze_video_mock(filepath: str):
     time.sleep(0.5)
     
     # Create output directory
-    test_scripts_dir = Path("test_scripts")
+    test_scripts_dir = Path("test_outputs")
     test_scripts_dir.mkdir(exist_ok=True)
     
     # Generate mock 2D pose data

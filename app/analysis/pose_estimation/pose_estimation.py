@@ -4,7 +4,7 @@ import numpy as np
 from app.utils.device_manager import get_device
 from OneEuroFilter import OneEuroFilter
 
-def pose_estimation(filepath_in: str, apply_smoothing: bool = True):
+def pose_estimation(filepath_in: str, apply_smoothing: bool):
     # Initialize model (auto-downloads checkpoints)
     device = get_device()
     model = RTMPose3D.from_pretrained('rbarac/rtmpose3d', device=device)

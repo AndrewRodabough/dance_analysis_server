@@ -18,6 +18,5 @@ async def upload_video(file: UploadFile = File(...)) -> Dict[str, str]:
     analyze_video(str(file_location))
 
     return {
-        "info": f"Video '{file.filename}' saved at '{file_location}'",
         "status": "Analysis Complete",
     }

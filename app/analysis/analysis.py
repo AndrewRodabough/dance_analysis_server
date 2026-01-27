@@ -3,13 +3,12 @@ import os
 import numpy as np
 from pathlib import Path
 from app.analysis.pose_estimation.pose_estimation import pose_estimation
-from app.analysis.video_generation import generate_visualization_videos
 from app.analysis.mock_analysis import analyze_video_mock
 
 # Toggle between real and mock analysis via environment variable
 USE_MOCK = os.getenv("USE_MOCK_ANALYSIS", "false").lower() == "true"
 
-def analyze_video(filepath: str):
+def analyze_video(filepath: str, save_keypoints_path: str = 'test_outputs'):
     # Use mock analysis if enabled (for local development without GPU)
     if USE_MOCK:
         return analyze_video_mock(filepath)
@@ -19,33 +18,8 @@ def analyze_video(filepath: str):
     # pose processing (with smoothing applied)
     keypoints_2d_list, keypoints_3d_list = pose_estimation(filepath, apply_smoothing=True)
 
-    # Save results to test_scripts folder
-    test_scripts_dir = Path("test_scripts")
-    test_scripts_dir.mkdir(exist_ok=True)
-    
-    # Convert numpy arrays to lists for JSON serialization
-    def convert_to_serializable(obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, dict):
-            return {k: convert_to_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_to_serializable(item) for item in obj]
-        return obj
-    
-    # Save 2D estimation
-    with open(test_scripts_dir / "estimation_2d.json", "w") as f:
-        json.dump(convert_to_serializable(keypoints_2d_list), f, indent=2)
-    print(f"Saved 2D estimation to {test_scripts_dir / 'estimation_2d.json'}")
-    
-    # Save 3D estimation
-    with open(test_scripts_dir / "estimation_3d.json", "w") as f:
-        json.dump(convert_to_serializable(keypoints_3d_list), f, indent=2)
-    print(f"Saved 3D estimation to {test_scripts_dir / 'estimation_3d.json'}")
-    
-    # Generate visualization videos
-    generate_visualization_videos(filepath, keypoints_2d_list, keypoints_3d_list, test_scripts_dir)
-
+    if save_keypoints_path != '':
+        save_keypoints_to_json(save_keypoints_path, keypoints_2d_list, keypoints_3d_list)
 
     # data / features Extraction
 
@@ -54,3 +28,19 @@ def analyze_video(filepath: str):
 
 
     # report generation
+
+
+def save_keypoints_to_json(folder_path: str, keypoints_2d, keypoints_3d):
+    """Save keypoints data to JSON files"""
+    os.makedirs(folder_path, exist_ok=True)
+    keypoints_2d_path = Path(folder_path) / "keypoints_2d.json"
+    keypoints_3d_path = Path(folder_path) / "keypoints_3d.json"
+
+    with open(keypoints_2d_path, 'w') as f2d:
+        json.dump([kp.tolist() for kp in keypoints_2d], f2d)
+
+    with open(keypoints_3d_path, 'w') as f3d:
+        json.dump([kp.tolist() for kp in keypoints_3d], f3d)
+
+    print(f"Saved 2D keypoints to {keypoints_2d_path}")
+    print(f"Saved 3D keypoints to {keypoints_3d_path}")
