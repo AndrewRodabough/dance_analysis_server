@@ -2,10 +2,9 @@ numpy
 fastapi
 uvicorn[standard]
 python-multipart
-mmengine
 opencv-python
-numpy
+mmengine
 mmdet
 mmpose
 rtmpose3d
-one-euro-filter
+OneEuroFilter

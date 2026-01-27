@@ -1,8 +1,8 @@
 import cv2
 from rtmpose3d import RTMPose3D
-from one_euro_filter import OneEuroFilter
 import numpy as np
 from app.utils.device_manager import get_device
+from OneEuroFilter import OneEuroFilter
 
 def pose_estimation(filepath_in: str, apply_smoothing: bool = True):
     # Initialize model (auto-downloads checkpoints)
@@ -55,8 +55,8 @@ def pose_estimation(filepath_in: str, apply_smoothing: bool = True):
 def _apply_smoothing(keypoints_2d_list, keypoints_3d_list, fps):
     """Apply One Euro Filter smoothing to remove jitter and pops"""
     # Track filters per person (dict of person_id -> filters)
-    filters_2d = {}  # person_id -> list of filters (one per keypoint)
-    filters_3d = {}  # person_id -> list of filters (one per keypoint)
+    filters_2d = {}  # person_id -> list of filters per keypoint per dimension
+    filters_3d = {}  # person_id -> list of filters per keypoint per dimension
     
     smoothed_2d_list = []
     smoothed_3d_list = []
@@ -78,22 +78,36 @@ def _apply_smoothing(keypoints_2d_list, keypoints_3d_list, fps):
                 person_kp3d = kp3d[person_idx].copy()
             
             # Initialize filters for new person
+            # Create separate filters for each coordinate dimension
             if person_id not in filters_2d:
-                filters_2d[person_id] = [OneEuroFilter(freq=fps, min_cutoff=5.0, beta=0.05, d_cutoff=1.0) 
-                                          for _ in range(person_kp2d.shape[0])]
-                filters_3d[person_id] = [OneEuroFilter(freq=fps, min_cutoff=5.0, beta=0.05, d_cutoff=1.0) 
-                                          for _ in range(person_kp3d.shape[0])]
+                num_keypoints_2d = person_kp2d.shape[0]
+                num_dims_2d = person_kp2d.shape[1]  # 2 for x,y
+                filters_2d[person_id] = [[OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.05, dcutoff=1.0) 
+                                          for _ in range(num_dims_2d)]
+                                         for _ in range(num_keypoints_2d)]
+                
+                num_keypoints_3d = person_kp3d.shape[0]
+                num_dims_3d = person_kp3d.shape[1]  # 3 for x,y,z
+                filters_3d[person_id] = [[OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.05, dcutoff=1.0) 
+                                          for _ in range(num_dims_3d)]
+                                         for _ in range(num_keypoints_3d)]
             
-            # Apply filter to each keypoint
+            # Apply filter to each keypoint coordinate
             timestamp = frame_idx / fps
             
-            # Smooth 2D keypoints
+            # Smooth 2D keypoints - filter each dimension separately
             for kp_idx in range(person_kp2d.shape[0]):
-                person_kp2d[kp_idx] = filters_2d[person_id][kp_idx](person_kp2d[kp_idx], timestamp)
+                for dim_idx in range(person_kp2d.shape[1]):
+                    person_kp2d[kp_idx, dim_idx] = filters_2d[person_id][kp_idx][dim_idx](
+                        person_kp2d[kp_idx, dim_idx], timestamp
+                    )
             
-            # Smooth 3D keypoints  
+            # Smooth 3D keypoints - filter each dimension separately
             for kp_idx in range(person_kp3d.shape[0]):
-                person_kp3d[kp_idx] = filters_3d[person_id][kp_idx](person_kp3d[kp_idx], timestamp)
+                for dim_idx in range(person_kp3d.shape[1]):
+                    person_kp3d[kp_idx, dim_idx] = filters_3d[person_id][kp_idx][dim_idx](
+                        person_kp3d[kp_idx, dim_idx], timestamp
+                    )
             
             frame_kp2d.append(person_kp2d)
             frame_kp3d.append(person_kp3d)
