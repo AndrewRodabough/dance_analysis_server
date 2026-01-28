@@ -1,123 +1,27 @@
-import cv2
-from rtmpose3d import RTMPose3D
-import numpy as np
-from app.utils.device_manager import get_device
-from OneEuroFilter import OneEuroFilter
+"""
+Pose estimation module - delegates to the active pipeline.
 
-def pose_estimation(filepath_in: str, apply_smoothing: bool):
-    # Initialize model (auto-downloads checkpoints)
-    device = get_device()
-    model = RTMPose3D.from_pretrained('rbarac/rtmpose3d', device=device)
+Current pipeline: RTMDet-L + RTMW-L + MotionBERT
+- RTMDet-L: Person detection
+- RTMW-L: 2D wholebody pose estimation (133 keypoints)
+- MotionBERT: 2D→3D pose lifting (17 body keypoints)
+- OneEuroFilter: Temporal smoothing
+"""
 
-    # Open video file
-    cap = cv2.VideoCapture(filepath_in)
-    
-    if not cap.isOpened():
-        raise ValueError(f"Could not open video file: {filepath_in}")
-    
-    # Get FPS for smoothing
-    fps = int(cap.get(cv2.CAP_PROP_FPS)) if apply_smoothing else 30
-    
-    all_keypoints_3d = []
-    all_keypoints_2d = []
-    all_scores = []
-    frame_count = 0
-    
-    # Process each frame
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # Run inference on current frame
-        results = model(frame, return_tensors='np')
-        
-        # Collect results
-        all_keypoints_3d.append(results['keypoints_3d'])  # [N, 133, 3]
-        all_keypoints_2d.append(results['keypoints_2d'])  # [N, 133, 2]
-        all_scores.append(results['scores'])              # [N, 133]
-        
-        frame_count += 1
-    
-    cap.release()
-    
-    # Apply smoothing if requested
-    if apply_smoothing:
-        print("Applying smoothing filters...")
-        all_keypoints_2d, all_keypoints_3d = _apply_smoothing(
-            all_keypoints_2d, all_keypoints_3d, fps
-        )
-        print(f"Smoothing complete - processed {len(all_keypoints_2d)} frames")
-    
-    return all_keypoints_2d, all_keypoints_3d
+# Choose which pipeline to use
+USE_MOTIONBERT_PIPELINE = True
 
+if USE_MOTIONBERT_PIPELINE:
+    from app.analysis.pose_estimation.pose_estimation_motionbert import (
+        pose_estimation,
+        PoseEstimationPipeline,
+        ENABLE_ANATOMICAL_CONSTRAINTS
+    )
+else:
+    # Legacy RTMPose3D pipeline
+    from app.analysis.pose_estimation.pose_estimation_legacy import (
+        pose_estimation,
+        ENABLE_ANATOMICAL_CONSTRAINTS
+    )
 
-def _apply_smoothing(keypoints_2d_list, keypoints_3d_list, fps):
-    """Apply One Euro Filter smoothing to remove jitter and pops"""
-    # Track filters per person (dict of person_id -> filters)
-    filters_2d = {}  # person_id -> list of filters per keypoint per dimension
-    filters_3d = {}  # person_id -> list of filters per keypoint per dimension
-    
-    smoothed_2d_list = []
-    smoothed_3d_list = []
-    
-    for frame_idx, (kp2d, kp3d) in enumerate(zip(keypoints_2d_list, keypoints_3d_list)):
-        num_people = kp2d.shape[0] if len(kp2d.shape) > 2 else 1
-        
-        frame_kp2d = []
-        frame_kp3d = []
-        
-        for person_idx in range(num_people):
-            person_id = person_idx  # Simple tracking by index
-            
-            if len(kp2d.shape) == 2:
-                person_kp2d = kp2d.copy()
-                person_kp3d = kp3d.copy()
-            else:
-                person_kp2d = kp2d[person_idx].copy()
-                person_kp3d = kp3d[person_idx].copy()
-            
-            # Initialize filters for new person
-            # Create separate filters for each coordinate dimension
-            if person_id not in filters_2d:
-                num_keypoints_2d = person_kp2d.shape[0]
-                num_dims_2d = person_kp2d.shape[1]  # 2 for x,y
-                filters_2d[person_id] = [[OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.05, dcutoff=1.0) 
-                                          for _ in range(num_dims_2d)]
-                                         for _ in range(num_keypoints_2d)]
-                
-                num_keypoints_3d = person_kp3d.shape[0]
-                num_dims_3d = person_kp3d.shape[1]  # 3 for x,y,z
-                filters_3d[person_id] = [[OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.05, dcutoff=1.0) 
-                                          for _ in range(num_dims_3d)]
-                                         for _ in range(num_keypoints_3d)]
-            
-            # Apply filter to each keypoint coordinate
-            timestamp = frame_idx / fps
-            
-            # Smooth 2D keypoints - filter each dimension separately
-            for kp_idx in range(person_kp2d.shape[0]):
-                for dim_idx in range(person_kp2d.shape[1]):
-                    person_kp2d[kp_idx, dim_idx] = filters_2d[person_id][kp_idx][dim_idx](
-                        person_kp2d[kp_idx, dim_idx], timestamp
-                    )
-            
-            # Smooth 3D keypoints - filter each dimension separately
-            for kp_idx in range(person_kp3d.shape[0]):
-                for dim_idx in range(person_kp3d.shape[1]):
-                    person_kp3d[kp_idx, dim_idx] = filters_3d[person_id][kp_idx][dim_idx](
-                        person_kp3d[kp_idx, dim_idx], timestamp
-                    )
-            
-            frame_kp2d.append(person_kp2d)
-            frame_kp3d.append(person_kp3d)
-        
-        # Convert back to array format
-        if num_people == 1:
-            smoothed_2d_list.append(frame_kp2d[0])
-            smoothed_3d_list.append(frame_kp3d[0])
-        else:
-            smoothed_2d_list.append(np.array(frame_kp2d))
-            smoothed_3d_list.append(np.array(frame_kp3d))
-    
-    return smoothed_2d_list, smoothed_3d_list
+__all__ = ['pose_estimation', 'ENABLE_ANATOMICAL_CONSTRAINTS']

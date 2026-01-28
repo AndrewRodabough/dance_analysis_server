@@ -167,6 +167,56 @@ class KeypointSchema:
         }
 
 
+class H36MKeypoint(Enum):
+    """
+    Human3.6M (H36M) 17-keypoint format.
+    Used by MotionBERT and other 3D pose estimators.
+    """
+    PELVIS = 0
+    RIGHT_HIP = 1
+    RIGHT_KNEE = 2
+    RIGHT_ANKLE = 3
+    LEFT_HIP = 4
+    LEFT_KNEE = 5
+    LEFT_ANKLE = 6
+    SPINE = 7
+    THORAX = 8
+    NECK = 9
+    HEAD = 10
+    LEFT_SHOULDER = 11
+    LEFT_ELBOW = 12
+    LEFT_WRIST = 13
+    RIGHT_SHOULDER = 14
+    RIGHT_ELBOW = 15
+    RIGHT_WRIST = 16
+
+
+# H36M skeleton connections
+H36M_SKELETON: List[Tuple[int, int]] = [
+    # Spine chain
+    (0, 7),    # pelvis to spine
+    (7, 8),    # spine to thorax
+    (8, 9),    # thorax to neck
+    (9, 10),   # neck to head
+    # Right leg
+    (0, 1),    # pelvis to right hip
+    (1, 2),    # right hip to right knee
+    (2, 3),    # right knee to right ankle
+    # Left leg
+    (0, 4),    # pelvis to left hip
+    (4, 5),    # left hip to left knee
+    (5, 6),    # left knee to left ankle
+    # Left arm
+    (8, 11),   # thorax to left shoulder
+    (11, 12),  # left shoulder to left elbow
+    (12, 13),  # left elbow to left wrist
+    # Right arm
+    (8, 14),   # thorax to right shoulder
+    (14, 15),  # right shoulder to right elbow
+    (15, 16),  # right elbow to right wrist
+]
+
+
 # Pre-instantiated default schema
 DEFAULT_SCHEMA = KeypointSchema("coco_wholebody")
 
@@ -177,13 +227,15 @@ def get_keypoint_name(index: int, schema_type: str = "coco_wholebody") -> str:
     
     Args:
         index: Keypoint index
-        schema_type: Schema to use
+        schema_type: Schema to use (coco_wholebody or h36m)
     
     Returns:
         Human-readable name for the keypoint
     """
     if schema_type == "coco_wholebody":
         return DEFAULT_SCHEMA.get_name(index)
+    elif schema_type == "h36m":
+        return H36MKeypoint(index).name if 0 <= index <= 16 else f"KEYPOINT_{index}"
     else:
         schema = KeypointSchema(schema_type)
         return schema.get_name(index)
