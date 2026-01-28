@@ -46,6 +46,21 @@ services:
     group_add:
       - video
 
+  # Mac GPU Configuration (Metal)
+  dance_server_mac:
+    <<: *common
+    container_name: dance_analysis_server_mac
+    profiles: ["mac"]
+    environment:
+      - DEVICE_TYPE=mps
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: compute
+              device_ids: ["gpu"]
+              capabilities: [gpu]
+
   # CPU-only Configuration
   dance_server_cpu:
     <<: *common
