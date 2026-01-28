@@ -36,6 +36,15 @@ docker compose --profile nvidia up
 docker compose --profile amd up
 ```
 
+#### With Mac GPU (Metal Performance Shaders)
+```bash
+docker compose --profile mac up
+```
+**Requirements:**
+- Docker Desktop for Mac with GPU support enabled (Settings → Resources → GPU)
+- Apple Silicon Mac (M1/M2/M3 or newer)
+- PyTorch 1.12+
+
 #### CPU Only
 ```bash
 docker compose --profile cpu up
