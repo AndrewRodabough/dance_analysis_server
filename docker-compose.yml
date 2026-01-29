@@ -1,6 +1,6 @@
 x-common-config: &common
   image: dance_analysis_server:latest
-  shm_size: '8gb'
+  shm_size: "8gb"
   volumes:
     - ./:/workspace
   command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -33,7 +33,7 @@ services:
               count: all
               capabilities: [gpu]
 
-  # AMD GPU Configuration  
+  # AMD GPU Configuration
   dance_server_amd:
     <<: *common
     container_name: dance_analysis_server_amd

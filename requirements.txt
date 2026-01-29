@@ -8,3 +8,5 @@ mmdet
 mmpose
 rtmpose3d
 OneEuroFilter
+pytest
+pytest-cov

@@ -60,3 +60,21 @@ docker compose --profile cpu up
 - Requires Docker with GPU support
 - Uses MediaPipe for actual pose estimation
 - Generates real visualization videos
+
+## Testing
+
+Run unit tests for pose data structures and mappers:
+
+```bash
+# Using unittest (built-in)
+python3 -m unittest discover tests
+
+# Using pytest (recommended)
+pip install pytest pytest-cov
+pytest tests/ -v
+
+# With coverage
+pytest tests/ --cov=app.models --cov-report=html
+```
+
+See `tests/README.md` for detailed testing documentation.
