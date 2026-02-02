@@ -1,5 +1,0 @@
-# Minimal dependencies for local API development (mock mode)
-# Use this instead of requirements.txt when working without Docker/GPU
-fastapi
-uvicorn[standard]
-python-multipart

@@ -1,5 +1,5 @@
 # base image
-FROM openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy
+FROM python:3.10-slim
 
 # Environment Variables
 # Prevents Python from buffering stdout/stderr (logs appear immediately)
@@ -9,25 +9,23 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # System Dependencies (The "Heavy" Layer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    ffmpeg \
-    libgl1 \
-    libglib2.0-0 \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Work inside the server app
-WORKDIR /workspace
+WORKDIR /app
 
-# Install Python dependencies: FastAPI stack plus MMPose via OpenMMLab
+# Install Python dependencies: FastAPI + RQ + boto3
 COPY requirements.txt .
-RUN python3 -m pip install --upgrade pip --break-system-packages && \
-    python3 -m pip install --no-cache-dir -r requirements.txt --break-system-packages
-
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 # using uvicorn for FastAPI listening on all interfaces (0.0.0.0)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
