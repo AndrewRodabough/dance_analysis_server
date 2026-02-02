@@ -54,10 +54,6 @@ case "$1" in
         WORKER_NAME="dance-video-worker-$PROFILE"
         docker compose exec "$WORKER_NAME" bash
         ;;
-    shell-analysis)
-        echo "📦 Opening shell in analysis-worker container..."
-        docker compose exec analysis-worker bash
-        ;;
     minio-console)
         echo "🌐 MinIO Console:"
         echo "   URL: http://localhost:9001"
@@ -102,8 +98,7 @@ case "$1" in
         echo ""
         echo "Containers:"
         echo "  shell-backend      Open shell in backend container"
-        echo "  shell-worker       Open shell in GPU worker container"
-        echo "  shell-analysis     Open shell in analysis worker container"
+        echo "  shell-worker       Open shell in worker container"
         echo ""
         echo "Dashboards:"
         echo "  minio-console      Show MinIO console URL"

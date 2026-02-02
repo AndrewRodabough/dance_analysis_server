@@ -41,7 +41,7 @@ x-video-worker-common: &video-worker-common
   networks:
     - dance-network
   restart: unless-stopped
-  command: ["rq", "worker", "--url", "redis://redis:6379/0", "video-processing"]
+  command: ["rq", "worker", "--url", "redis://redis:6379/0", "pose-estimation"]
 
 services:
   backend:
@@ -122,6 +122,23 @@ services:
       mc anonymous set download myminio/dance-videos;
       exit 0;
       "
+
+  # Analysis worker - CPU only (runs on backend)
+  analysis-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dance-analysis-worker
+    environment: *common-env
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - dance-network
+    restart: unless-stopped
+    command: ["rq", "worker", "--url", "redis://redis:6379/0", "analysis"]
 
   video-worker-cpu:
     <<: *video-worker-common
