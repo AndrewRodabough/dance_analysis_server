@@ -52,10 +52,26 @@ docker compose --profile cpu up
 
 ## API Endpoints
 
-- `GET /` - Service status
-- `GET /health` - Health check
-- `POST /analyze` - Upload video for analysis
-- API docs: http://localhost:8000/docs
+### Video Upload
+
+**Direct Upload (Recommended)** - See [docs/DIRECT_UPLOAD.md](docs/DIRECT_UPLOAD.md):
+- `POST /api/v1/analyze/upload-url` - Request presigned S3 URL
+- `PUT <presigned-url>` - Upload video directly to S3
+- `POST /api/v1/analyze/confirm` - Confirm upload and start processing
+
+**Legacy Upload** (Deprecated):
+- `POST /api/v1/analyze` - Upload video through API server
+
+### Status & Results
+- `GET /api/v1/analyze/{job_id}/status` - Check processing status
+- `GET /api/v1/analyze/{job_id}/result` - Get analysis results
+
+### Health
+- `GET /api/v1/health` - Health check
+
+API docs: http://localhost:8000/docs
+
+See [docs/DIRECT_UPLOAD.md](docs/DIRECT_UPLOAD.md) for detailed documentation on the direct upload flow.
 
 ## Development Modes
 
@@ -152,14 +168,25 @@ Convenient wrapper around Docker Compose commands with profile support:
 
 ### Data Flow
 
+**Direct Upload (Recommended):**
 ```
-1. User uploads video → Backend API
+1. User requests presigned URL → Backend API
+2. Backend generates presigned S3 URL (15 min expiry)
+3. User uploads video directly → MinIO S3
+4. User confirms upload → Backend API
+5. Backend queues job in Redis
+6. Worker picks job from Redis
+7. Worker downloads video from MinIO
+8. Worker processes (pose estimation)
+9. Worker uploads results to MinIO
+10. Worker updates Redis with status
+11. User polls status, downloads results
+```
+
+**Legacy Upload (Deprecated):**
+```
+1. User uploads video → Backend API (loads into memory)
 2. Backend saves to MinIO S3
 3. Backend queues job in Redis
-4. Worker picks job from Redis
-5. Worker downloads video from MinIO
-6. Worker processes (pose estimation)
-7. Worker uploads results to MinIO
-8. Worker updates Redis with status
-9. User polls status, downloads results
+4. [continues same as above from step 6]
 ```

@@ -3,6 +3,10 @@ Test script to send a video file to the analysis API endpoint and check processi
 
 The analysis is asynchronous - videos are queued for processing and a job_id is returned.
 Use the job_id to check status and retrieve results.
+
+This script supports two upload methods:
+1. Direct upload (RECOMMENDED): Video uploaded directly to S3 using presigned URL
+2. Legacy upload: Video uploaded through API server (deprecated)
 """
 import requests
 import time
@@ -13,9 +17,12 @@ import json
 API_BASE_URL = "http://localhost:8000"
 ANALYZE_ENDPOINT = f"{API_BASE_URL}/api/v1/analyze"
 
-def upload_video(video_path: str) -> dict:
+
+def upload_video_direct(video_path: str) -> dict:
     """
-    Upload a video file to the analysis API endpoint
+    Upload a video file directly to S3 using presigned URL (RECOMMENDED)
+    
+    This is more efficient as the video doesn't go through the API server.
     
     Args:
         video_path: Path to the video file to upload
@@ -28,7 +35,93 @@ def upload_video(video_path: str) -> dict:
     if not video_file.exists():
         raise FileNotFoundError(f"Video file not found: {video_path}")
     
-    print(f"Uploading video: {video_path}")
+    print(f"Uploading video directly to S3: {video_path}")
+    
+    # Step 1: Request presigned upload URL
+    print("  Step 1/3: Requesting presigned upload URL...")
+    try:
+        response = requests.post(
+            f"{ANALYZE_ENDPOINT}/upload-url",
+            params={
+                "filename": video_file.name,
+                "content_type": "video/mp4"
+            }
+        )
+        response.raise_for_status()
+        url_data = response.json()
+        
+        job_id = url_data['job_id']
+        upload_url = url_data['upload_url']
+        s3_key = url_data['s3_key']
+        
+        print(f"  ✓ Received upload URL for job: {job_id}")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error requesting upload URL: {e}")
+        raise
+    
+    # Step 2: Upload video directly to S3
+    print("  Step 2/3: Uploading video to S3...")
+    try:
+        with open(video_file, "rb") as f:
+            video_content = f.read()
+            
+        response = requests.put(
+            upload_url,
+            data=video_content,
+            headers={'Content-Type': 'video/mp4'}
+        )
+        response.raise_for_status()
+        
+        print(f"  ✓ Video uploaded to S3 ({len(video_content)} bytes)")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error uploading to S3: {e}")
+        raise
+    
+    # Step 3: Confirm upload and start processing
+    print("  Step 3/3: Confirming upload and starting analysis...")
+    try:
+        response = requests.post(
+            f"{ANALYZE_ENDPOINT}/confirm",
+            params={
+                "job_id": job_id,
+                "s3_key": s3_key
+            }
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        print(f"✓ Upload successful! Job ID: {result.get('job_id')}")
+        print(f"  Status: {result.get('status')} (stage: {result.get('stage')})")
+        
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error confirming upload: {e}")
+        raise
+
+
+def upload_video(video_path: str) -> dict:
+    """
+    Upload a video file to the analysis API endpoint (LEGACY)
+    
+    This method uploads through the API server. For better performance,
+    use upload_video_direct() instead.
+    
+    Args:
+        video_path: Path to the video file to upload
+        
+    Returns:
+        Response JSON from the API containing job_id
+    """
+    video_file = Path(video_path)
+    
+    if not video_file.exists():
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+    
+    print(f"Uploading video (legacy method): {video_path}")
+    print("  Note: Consider using --direct flag for better performance")
     
     with open(video_file, "rb") as f:
         files = {"file": (video_file.name, f, "video/mp4")}
@@ -142,14 +235,17 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python upload_video.py <video_path> [--status <job_id>] [--results <job_id>] [--wait]")
+        print("Usage: python upload_video.py <video_path> [--direct] [--status <job_id>] [--results <job_id>] [--wait]")
         print()
         print("Examples:")
-        print("  # Upload and get job ID:")
+        print("  # Upload using direct S3 upload (RECOMMENDED):")
+        print("  python upload_video.py path/to/video.mp4 --direct")
+        print()
+        print("  # Upload using legacy method (through API server):")
         print("  python upload_video.py path/to/video.mp4")
         print()
         print("  # Upload and wait for completion:")
-        print("  python upload_video.py path/to/video.mp4 --wait")
+        print("  python upload_video.py path/to/video.mp4 --direct --wait")
         print()
         print("  # Check status of existing job:")
         print("  python upload_video.py --status <job_id>")
@@ -174,7 +270,13 @@ if __name__ == "__main__":
         else:
             # Upload video
             video_path = sys.argv[1]
-            upload_response = upload_video(video_path)
+            
+            # Check if --direct flag is provided
+            if "--direct" in sys.argv:
+                upload_response = upload_video_direct(video_path)
+            else:
+                upload_response = upload_video(video_path)
+                
             job_id = upload_response.get('job_id')
             
             # Check if --wait flag is provided
@@ -188,7 +290,7 @@ if __name__ == "__main__":
                 print("\nTo get results when complete:")
                 print(f"  python upload_video.py --results {job_id}")
                 print("\nTo wait for completion:")
-                print(f"  python upload_video.py {video_path} --wait")
+                print(f"  python upload_video.py {video_path} --direct --wait")
     
     except Exception as e:
         print(f"Error: {e}")

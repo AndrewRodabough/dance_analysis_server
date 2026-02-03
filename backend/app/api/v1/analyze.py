@@ -1,7 +1,7 @@
 """Video analysis endpoints - upload, queue, and status tracking."""
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, status
-from typing import Dict
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, Query
+from typing import Dict, Any
 import uuid
 import os
 import logging
@@ -22,11 +22,23 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio:9000")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minioadmin")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minioadmin")
 S3_BUCKET = os.getenv("S3_BUCKET", "dance-videos")
+# Public endpoint for presigned URLs (accessible from outside Docker)
+S3_PUBLIC_ENDPOINT = os.getenv("S3_PUBLIC_ENDPOINT", "http://localhost:9000")
 
-# Initialize S3 client
+# Initialize S3 client (for internal operations)
 s3_client = boto3.client(
     's3',
     endpoint_url=S3_ENDPOINT,
+    aws_access_key_id=S3_ACCESS_KEY,
+    aws_secret_access_key=S3_SECRET_KEY,
+    config=Config(signature_version='s3v4'),
+    region_name='us-east-1'
+)
+
+# Initialize S3 client for presigned URLs (with public endpoint)
+s3_client_public = boto3.client(
+    's3',
+    endpoint_url=S3_PUBLIC_ENDPOINT,
     aws_access_key_id=S3_ACCESS_KEY,
     aws_secret_access_key=S3_SECRET_KEY,
     config=Config(signature_version='s3v4'),
@@ -39,12 +51,150 @@ pose_queue = Queue('pose-estimation', connection=redis_conn)
 analysis_queue = Queue('analysis', connection=redis_conn)
 
 
-@router.post("", summary="Submit video for analysis", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/upload-url", summary="Request presigned upload URL", status_code=status.HTTP_200_OK)
+async def request_upload_url(
+    filename: str = Query(..., description="Name of the video file"),
+    content_type: str = Query("video/mp4", description="MIME type of the video")
+) -> Dict[str, Any]:
+    """
+    Request a presigned URL for direct upload to S3.
+    
+    This enables clients to upload videos directly to S3 without going through the API server,
+    reducing server load and improving upload performance.
+    
+    **Steps:**
+    1. Call this endpoint to get upload URL and job_id
+    2. PUT the video file to the upload_url
+    3. Call /analyze/confirm with the job_id to start processing
+    
+    **Args:**
+    - filename: Name of the video file (e.g., "dance_video.mp4")
+    - content_type: MIME type of the video (default: "video/mp4")
+    
+    **Returns:**
+    - upload_url: Presigned URL to upload the video (valid for 15 minutes)
+    - job_id: Unique identifier for tracking this analysis
+    - s3_key: S3 object key where the file will be stored
+    """
+    # Validate file type
+    allowed_extensions = {'.mp4', '.avi', '.mov'}
+    file_ext = Path(filename).suffix.lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
+        )
+    
+    # Generate unique job ID
+    job_id = str(uuid.uuid4())
+    
+    # S3 key structure: uploads/{job_id}/{filename}
+    s3_key = f"uploads/{job_id}/{filename}"
+    
+    try:
+        # Generate presigned URL for direct upload (valid for 15 minutes)
+        # Use public endpoint so clients outside Docker can access it
+        upload_url = s3_client_public.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': S3_BUCKET,
+                'Key': s3_key,
+                'ContentType': content_type
+            },
+            ExpiresIn=900,  # 15 minutes
+            HttpMethod='PUT'
+        )
+        
+        logger.info(f"Generated presigned upload URL for job {job_id}: {s3_key}")
+        
+        return {
+            "job_id": job_id,
+            "upload_url": upload_url,
+            "s3_key": s3_key,
+            "expires_in": 900,
+            "instructions": "PUT the video file to upload_url, then call /analyze/confirm with job_id"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate upload URL: {str(e)}"
+        )
+
+
+@router.post("/confirm", summary="Confirm upload and start analysis", status_code=status.HTTP_202_ACCEPTED)
+async def confirm_upload_and_start_analysis(
+    job_id: str = Query(..., description="Job ID from upload-url endpoint"),
+    s3_key: str = Query(..., description="S3 key from upload-url endpoint")
+) -> Dict[str, str]:
+    """
+    Confirm that a video has been uploaded to S3 and start the analysis pipeline.
+    
+    Call this endpoint after successfully uploading the video using the presigned URL
+    from /analyze/upload-url.
+    
+    **Args:**
+    - job_id: The job ID received from /analyze/upload-url
+    - s3_key: The S3 key received from /analyze/upload-url
+    
+    **Returns:**
+    - Job details and queuing status
+    """
+    try:
+        # Verify the object exists in S3
+        try:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+        except Exception as e:
+            logger.error(f"S3 object not found: {s3_key}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Video not found in S3. Please upload the file first using the presigned URL."
+            )
+        
+        # Queue pose estimation job (GPU stage)
+        job = pose_queue.enqueue(
+            'tasks.extract_keypoints',
+            args=[s3_key, job_id],
+            kwargs={'options': {'apply_smoothing': True}},
+            job_id=job_id,
+            job_timeout='1h',
+            result_ttl=86400  # Keep results for 24 hours
+        )
+        
+        logger.info(f"Job {job_id} queued for pose estimation (GPU stage)")
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "stage": "pose-estimation",
+            "s3_key": s3_key,
+            "message": "Video confirmed and queued for pose estimation"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to queue job: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start analysis: {str(e)}"
+        )
+
+
+@router.post("", summary="Submit video for analysis (legacy)", status_code=status.HTTP_202_ACCEPTED)
 async def submit_video_analysis(
     file: UploadFile = File(..., description="Video file (mp4, avi, mov)")
 ) -> Dict[str, str]:
     """
     Upload a dance video for pose estimation analysis.
+    
+    **DEPRECATED**: This endpoint uploads videos through the API server.
+    For better performance, use the direct upload flow:
+    1. POST /analyze/upload-url to get presigned URL
+    2. PUT video to the presigned URL
+    3. POST /analyze/confirm to start processing
     
     The video is uploaded to S3 and queued for processing.
     Returns a job_id to track analysis progress.
