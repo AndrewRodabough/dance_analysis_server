@@ -22,8 +22,7 @@ WORKDIR /workspace
 
 # Install Python dependencies: FastAPI stack plus MMPose via OpenMMLab
 COPY requirements.txt .
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 
 # Copy the rest of the application code
