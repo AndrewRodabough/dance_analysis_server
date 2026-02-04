@@ -1,0 +1,22 @@
+{
+    "name": "human_17",
+    "description": "Standard Human3.6M format used by MotionBERT. Root is Pelvis.",
+    "joints": [
+        "Pelvis", 
+        "R_Hip", "R_Knee", "R_Ankle", 
+        "L_Hip", "L_Knee", "L_Ankle", 
+        "Spine", "Neck", "Head", "Site", 
+        "L_Shoulder", "L_Elbow", "L_Wrist", 
+        "R_Shoulder", "R_Elbow", "R_Wrist"
+    ],
+    "bones": [
+        ["Pelvis", "Spine"], 
+        ["Spine", "Neck"], 
+        ["Neck", "Head"], 
+        ["Head", "Site"],
+        ["Pelvis", "L_Hip"], ["L_Hip", "L_Knee"], ["L_Knee", "L_Ankle"],
+        ["Pelvis", "R_Hip"], ["R_Hip", "R_Knee"], ["R_Knee", "R_Ankle"],
+        ["Neck", "L_Shoulder"], ["L_Shoulder", "L_Elbow"], ["L_Elbow", "L_Wrist"],
+        ["Neck", "R_Shoulder"], ["R_Shoulder", "R_Elbow"], ["R_Elbow", "R_Wrist"]
+    ]
+}

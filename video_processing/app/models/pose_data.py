@@ -5,222 +5,325 @@ Provides a consistent interface regardless of the underlying model (MediaPipe, M
 from dataclasses import dataclass
 from typing import List, Optional
 import json
+import numpy as np
 
-
-@dataclass
-class Keypoint2D:
-    """2D keypoint with pixel coordinates."""
-    x: float
-    y: float
-    visibility: Optional[float] = None  # Confidence score (0-1)
+class VectorizedPoseData:
+    """
+    Wrapper combining VectorizedSkeleton with confidence scores.
+    Keeps skeleton focused on geometry while bundling quality metrics.
+    """
     
-    def to_dict(self) -> dict:
-        result = {"x": self.x, "y": self.y}
-        if self.visibility is not None:
-            result["visibility"] = self.visibility
-        return result
-    
-    def to_list(self) -> List[float]:
-        """Returns [x, y] format for compatibility."""
-        return [self.x, self.y]
-
-
-@dataclass
-class Keypoint3D:
-    """3D keypoint with world coordinates (typically in meters)."""
-    x: float
-    y: float
-    z: float
-    visibility: Optional[float] = None  # Confidence score (0-1)
-    
-    def to_dict(self) -> dict:
-        result = {"x": self.x, "y": self.y, "z": self.z}
-        if self.visibility is not None:
-            result["visibility"] = self.visibility
-        return result
-    
-    def to_list(self) -> List[float]:
-        """Returns [x, y, z] format for compatibility."""
-        return [self.x, self.y, self.z]
-
-
-@dataclass
-class PersonPose:
-    """Pose data for a single person in a single frame."""
-    keypoints_2d: List[Keypoint2D]
-    keypoints_3d: Optional[List[Keypoint3D]] = None
-    person_id: Optional[int] = None  # For tracking multiple people
-    keypoint_schema: Optional[str] = "coco_wholebody"  # Schema type for semantic access
-    
-    @property
-    def num_keypoints(self) -> int:
-        return len(self.keypoints_2d)
-    
-    def get_keypoint_2d(self, index: int) -> Keypoint2D:
-        """Get a specific 2D keypoint by index."""
-        return self.keypoints_2d[index]
-    
-    def get_keypoint_3d(self, index: int) -> Optional[Keypoint3D]:
-        """Get a specific 3D keypoint by index."""
-        if self.keypoints_3d is None:
-            return None
-        return self.keypoints_3d[index]
-    
-    def get_keypoint_by_name(self, name: str, dimension: str = "2d"):
-        """Get a keypoint by semantic name (e.g., 'LEFT_ELBOW', 'NOSE').
-        
-        Args:
-            name: Semantic name of the body part (from COCOWholebodyKeypoint)
-            dimension: Either '2d' or '3d'
-        
-        Returns:
-            Keypoint2D or Keypoint3D object, or None if not found/available
-        
-        Examples:
-            >>> person.get_keypoint_by_name('NOSE')
-            >>> person.get_keypoint_by_name('LEFT_ELBOW', '3d')
+    def __init__(self, skeleton, confidence: np.ndarray):
         """
-        from .keypoint_schema import KeypointSchema
-        schema = KeypointSchema(self.keypoint_schema)
-        index = schema.get_index(name)
+        Args:
+            skeleton: VectorizedSkeleton with loaded motion data
+            confidence: Confidence scores, shape (Frames, Joints)
+        """
+        from .skeleton import VectorizedSkeleton
         
-        if index is None:
-            return None
+        if not isinstance(skeleton, VectorizedSkeleton):
+            raise TypeError("skeleton must be a VectorizedSkeleton instance")
         
-        if dimension == "2d":
-            return self.get_keypoint_2d(index)
-        elif dimension == "3d":
-            return self.get_keypoint_3d(index)
-        else:
-            raise ValueError(f"Invalid dimension: {dimension}. Use '2d' or '3d'")
-    
-    def get_body_part(self, part: str, dimension: str = "2d"):
-        """Alias for get_keypoint_by_name for more natural API."""
-        return self.get_keypoint_by_name(part, dimension)
-    
-    def to_dict(self) -> dict:
-        result = {
-            "keypoints_2d": [kp.to_dict() for kp in self.keypoints_2d],
-        }
-        if self.keypoints_3d is not None:
-            result["keypoints_3d"] = [kp.to_dict() for kp in self.keypoints_3d]
-        if self.person_id is not None:
-            result["person_id"] = self.person_id
-        return result
-
-
-@dataclass
-class FramePose:
-    """Pose data for all people detected in a single frame."""
-    frame_number: int
-    people: List[PersonPose]
-    timestamp: Optional[float] = None  # Timestamp in seconds
-    
-    @property
-    def num_people(self) -> int:
-        return len(self.people)
-    
-    def get_person(self, person_index: int) -> PersonPose:
-        """Get pose data for a specific person in this frame."""
-        return self.people[person_index]
-    
-    def to_dict(self) -> dict:
-        result = {
-            "frame_number": self.frame_number,
-            "people": [person.to_dict() for person in self.people],
-        }
-        if self.timestamp is not None:
-            result["timestamp"] = self.timestamp
-        return result
-
-
-@dataclass
-class PoseSequence:
-    """Complete pose estimation sequence for a video."""
-    frames: List[FramePose]
-    fps: Optional[float] = None
-    video_width: Optional[int] = None
-    video_height: Optional[int] = None
-    model_name: Optional[str] = None  # Track which model generated this data
+        if skeleton.data is None:
+            raise ValueError("Skeleton must have loaded data before creating VectorizedPoseData")
+        
+        # Validate confidence shape
+        expected_shape = (skeleton.num_frames, skeleton.num_joints)
+        if confidence.shape != expected_shape:
+            raise ValueError(
+                f"Confidence shape {confidence.shape} doesn't match "
+                f"expected {expected_shape} (frames, joints)"
+            )
+        
+        self.skeleton = skeleton
+        self.confidence = confidence.astype(np.float32)
     
     @property
     def num_frames(self) -> int:
-        return len(self.frames)
+        """Number of frames in the sequence."""
+        return self.skeleton.num_frames
     
     @property
-    def duration(self) -> Optional[float]:
-        """Duration in seconds if fps is available."""
-        if self.fps is not None:
-            return self.num_frames / self.fps
-        return None
+    def num_joints(self) -> int:
+        """Number of joints in the skeleton."""
+        return self.skeleton.num_joints
     
-    def get_frame(self, frame_number: int) -> FramePose:
-        """Get pose data for a specific frame."""
-        return self.frames[frame_number]
+    def get_high_confidence_mask(self, threshold: float = 0.5) -> np.ndarray:
+        """
+        Returns boolean mask for joints above confidence threshold.
+        
+        Args:
+            threshold: Confidence threshold (0-1)
+            
+        Returns:
+            Boolean array of shape (Frames, Joints)
+        """
+        return self.confidence > threshold
     
-    def get_person_trajectory(self, person_index: int = 0) -> List[PersonPose]:
-        """Get the trajectory of a specific person across all frames."""
-        return [frame.people[person_index] for frame in self.frames 
-                if person_index < len(frame.people)]
-    
-    def to_dict(self) -> dict:
-        result = {
-            "frames": [frame.to_dict() for frame in self.frames],
-            "num_frames": self.num_frames,
-        }
-        if self.fps is not None:
-            result["fps"] = self.fps
-            result["duration"] = self.duration
-        if self.video_width is not None:
-            result["video_width"] = self.video_width
-        if self.video_height is not None:
-            result["video_height"] = self.video_height
-        if self.model_name is not None:
-            result["model_name"] = self.model_name
+    def get_weighted_bone_lengths(self, threshold: float = 0.5) -> np.ndarray:
+        """
+        Get bone lengths, masking out bones with low-confidence endpoints.
+        
+        Args:
+            threshold: Minimum confidence for both endpoints
+            
+        Returns:
+            Bone lengths array, NaN where confidence is too low
+        """
+        lengths = self.skeleton.get_bone_lengths()
+        
+        # Get confidence for parent and child joints
+        parent_conf = self.confidence[:, self.skeleton.bones_index[0]]
+        child_conf = self.confidence[:, self.skeleton.bones_index[1]]
+        
+        # Both endpoints must meet threshold
+        valid_mask = (parent_conf >= threshold) & (child_conf >= threshold)
+        
+        # Mask invalid bones with NaN
+        result = lengths.copy()
+        result[~valid_mask] = np.nan
+        
         return result
     
-    def to_json(self, filepath: str, indent: int = 2):
-        """Save to JSON file."""
-        with open(filepath, 'w') as f:
-            json.dump(self.to_dict(), f, indent=indent)
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> "PoseSequence":
-        """Load from dictionary."""
-        frames = []
-        for frame_data in data["frames"]:
-            people = []
-            for person_data in frame_data["people"]:
-                keypoints_2d = [
-                    Keypoint2D(**kp) for kp in person_data["keypoints_2d"]
-                ]
-                keypoints_3d = None
-                if "keypoints_3d" in person_data:
-                    keypoints_3d = [
-                        Keypoint3D(**kp) for kp in person_data["keypoints_3d"]
-                    ]
-                people.append(PersonPose(
-                    keypoints_2d=keypoints_2d,
-                    keypoints_3d=keypoints_3d,
-                    person_id=person_data.get("person_id")
-                ))
-            frames.append(FramePose(
-                frame_number=frame_data["frame_number"],
-                people=people,
-                timestamp=frame_data.get("timestamp")
-            ))
+    def get_weighted_bone_angles(self, threshold: float = 0.5) -> np.ndarray:
+        """
+        Get bone angles, masking out angles with low-confidence joints.
         
-        return cls(
-            frames=frames,
-            fps=data.get("fps"),
-            video_width=data.get("video_width"),
-            video_height=data.get("video_height"),
-            model_name=data.get("model_name")
+        Args:
+            threshold: Minimum confidence for all three joints
+            
+        Returns:
+            Angles array in radians, NaN where confidence is too low
+        """
+        angles = self.skeleton.get_bone_angles()
+        
+        # Get confidence for all three joints in each angle
+        start_conf = self.confidence[:, self.skeleton.joints_index[0]]
+        pivot_conf = self.confidence[:, self.skeleton.joints_index[1]]
+        end_conf = self.confidence[:, self.skeleton.joints_index[2]]
+        
+        # All three joints must meet threshold
+        valid_mask = (start_conf >= threshold) & (pivot_conf >= threshold) & (end_conf >= threshold)
+        
+        # Mask invalid angles with NaN
+        result = angles.copy()
+        result[~valid_mask] = np.nan
+        
+        return result
+    
+    def get_joint_confidence(self, joint_name: str) -> np.ndarray:
+        """
+        Get confidence scores for a specific joint across all frames.
+        
+        Args:
+            joint_name: Name of the joint
+            
+        Returns:
+            Array of shape (Frames,) with confidence values
+        """
+        if joint_name not in self.skeleton.name_to_idx:
+            raise ValueError(f"Joint '{joint_name}' not found in skeleton")
+        
+        joint_idx = self.skeleton.name_to_idx[joint_name]
+        return self.confidence[:, joint_idx]
+    
+    def get_average_confidence(self) -> float:
+        """Get average confidence across all frames and joints."""
+        return np.mean(self.confidence).item()
+    
+    def get_frame_confidence(self) -> np.ndarray:
+        """
+        Get average confidence per frame.
+        
+        Returns:
+            Array of shape (Frames,) with average confidence per frame
+        """
+        return np.mean(self.confidence, axis=1)
+    
+    def filter_low_confidence_frames(self, threshold: float = 0.5) -> 'VectorizedPoseData':
+        """
+        Return a new VectorizedPoseData with only high-confidence frames.
+        
+        Args:
+            threshold: Minimum average confidence per frame
+            
+        Returns:
+            New VectorizedPoseData instance with filtered frames
+        """
+        if self.skeleton.data is None:
+            raise ValueError("Skeleton data must be loaded before filtering frames")
+        
+        frame_conf = self.get_frame_confidence()
+        valid_frames = frame_conf >= threshold
+        
+        # Filter skeleton data and confidence
+        filtered_data = self.skeleton.data[valid_frames]
+        filtered_conf = self.confidence[valid_frames]
+        
+        # Create new skeleton with filtered data
+        from .skeleton import VectorizedSkeleton
+        new_skeleton = VectorizedSkeleton(
+            self.skeleton.idx_to_name,
+            [(self.skeleton.idx_to_name[p], self.skeleton.idx_to_name[c]) 
+             for p, c in self.skeleton.bones_index.T]
+        )
+        new_skeleton.load_data(filtered_data)
+        
+        return VectorizedPoseData(new_skeleton, filtered_conf)
+
+
+class ScenePoseData:
+    """
+    Scene-level container for multi-person pose data with video metadata.
+    Holds all pose data for a complete video/scene.
+    """
+    
+    def __init__(
+        self,
+        people: List[VectorizedPoseData],
+        fps: float,
+        video_width: Optional[int] = None,
+        video_height: Optional[int] = None,
+        model_name: Optional[str] = None,
+        video_path: Optional[str] = None
+    ):
+        """
+        Args:
+            people: List of VectorizedPoseData, one per tracked person
+            fps: Frames per second of the video
+            video_width: Video width in pixels
+            video_height: Video height in pixels
+            model_name: Name of the pose estimation model used
+            video_path: Path to the source video file
+        """
+        if not people:
+            raise ValueError("At least one person must be provided")
+        
+        # Validate all people have same number of frames
+        num_frames = people[0].num_frames
+        if not all(p.num_frames == num_frames for p in people):
+            raise ValueError("All people must have the same number of frames")
+        
+        self.people = people
+        self.fps = fps
+        self.video_width = video_width
+        self.video_height = video_height
+        self.model_name = model_name
+        self.video_path = video_path
+    
+    @property
+    def num_people(self) -> int:
+        """Number of tracked people in the scene."""
+        return len(self.people)
+    
+    @property
+    def num_frames(self) -> int:
+        """Number of frames in the video."""
+        return self.people[0].num_frames
+    
+    @property
+    def duration(self) -> float:
+        """Duration of the video in seconds."""
+        return self.num_frames / self.fps
+    
+    def get_person(self, person_index: int) -> VectorizedPoseData:
+        """
+        Get pose data for a specific person.
+        
+        Args:
+            person_index: Index of the person (0-based)
+            
+        Returns:
+            VectorizedPoseData for that person
+        """
+        if person_index < 0 or person_index >= self.num_people:
+            raise IndexError(f"Person index {person_index} out of range [0, {self.num_people})")
+        return self.people[person_index]
+    
+    def get_primary_person(self) -> VectorizedPoseData:
+        """
+        Get the primary person (usually person 0 or highest confidence).
+        
+        Returns:
+            VectorizedPoseData for the primary person
+        """
+        if self.num_people == 1:
+            return self.people[0]
+        
+        # Find person with highest average confidence
+        best_idx = 0
+        best_conf = self.people[0].get_average_confidence()
+        
+        for i, person in enumerate(self.people[1:], 1):
+            conf = person.get_average_confidence()
+            if conf > best_conf:
+                best_conf = conf
+                best_idx = i
+        
+        return self.people[best_idx]
+    
+    def get_frame_timestamp(self, frame_index: int) -> float:
+        """
+        Get timestamp for a specific frame in seconds.
+        
+        Args:
+            frame_index: Frame number (0-based)
+            
+        Returns:
+            Timestamp in seconds
+        """
+        if frame_index < 0 or frame_index >= self.num_frames:
+            raise IndexError(f"Frame index {frame_index} out of range [0, {self.num_frames})")
+        return frame_index / self.fps
+    
+    def get_scene_average_confidence(self) -> float:
+        """Get average confidence across all people and frames."""
+        return np.mean([person.get_average_confidence() for person in self.people]).item()
+    
+    def filter_by_confidence(self, threshold: float = 0.5) -> 'ScenePoseData':
+        """
+        Create a new ScenePoseData with low-confidence frames removed from all people.
+        
+        Args:
+            threshold: Minimum average confidence per frame
+            
+        Returns:
+            New ScenePoseData with filtered frames
+        """
+        filtered_people = [person.filter_low_confidence_frames(threshold) for person in self.people]
+        
+        return ScenePoseData(
+            people=filtered_people,
+            fps=self.fps,
+            video_width=self.video_width,
+            video_height=self.video_height,
+            model_name=self.model_name,
+            video_path=self.video_path
         )
     
-    @classmethod
-    def from_json(cls, filepath: str) -> "PoseSequence":
-        """Load from JSON file."""
-        with open(filepath, 'r') as f:
-            data = json.load(f)
-        return cls.from_dict(data)
+    def to_dict(self) -> dict:
+        """
+        Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation
+        """
+        return {
+            "num_people": self.num_people,
+            "num_frames": self.num_frames,
+            "fps": self.fps,
+            "duration": self.duration,
+            "video_width": self.video_width,
+            "video_height": self.video_height,
+            "model_name": self.model_name,
+            "video_path": self.video_path,
+            "scene_average_confidence": self.get_scene_average_confidence(),
+            "people_average_confidence": [p.get_average_confidence() for p in self.people]
+        }
+    
+    def __repr__(self) -> str:
+        return (
+            f"ScenePoseData(people={self.num_people}, frames={self.num_frames}, "
+            f"fps={self.fps:.2f}, duration={self.duration:.2f}s, "
+            f"avg_conf={self.get_scene_average_confidence():.3f})"
+        )
