@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 .env
 
+# macOS
+.DS_Store
+
 # Large Media (Crucial!)
 video_processing/models/checkpoints/
 video_processing/temp/
@@ -10,3 +13,4 @@ backend/test_outputs/
 
 *.mp4
 *.pth
+*.MOV
