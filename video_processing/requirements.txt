@@ -1,0 +1,10 @@
+rq==1.15.1
+redis==5.0.1
+boto3==1.34.14
+numpy
+mmengine
+mmdet
+mmpose
+OneEuroFilter
+opencv-python
+watchfiles

@@ -52,10 +52,26 @@ docker compose --profile cpu up
 
 ## API Endpoints
 
-- `GET /` - Service status
-- `GET /health` - Health check
-- `POST /analyze` - Upload video for analysis
-- API docs: http://localhost:8000/docs
+### Video Upload
+
+**Direct Upload (Recommended)** - See [docs/DIRECT_UPLOAD.md](docs/DIRECT_UPLOAD.md):
+- `POST /api/v1/analyze/upload-url` - Request presigned S3 URL
+- `PUT <presigned-url>` - Upload video directly to S3
+- `POST /api/v1/analyze/confirm` - Confirm upload and start processing
+
+**Legacy Upload** (Deprecated):
+- `POST /api/v1/analyze` - Upload video through API server
+
+### Status & Results
+- `GET /api/v1/analyze/{job_id}/status` - Check processing status
+- `GET /api/v1/analyze/{job_id}/result` - Get analysis results
+
+### Health
+- `GET /api/v1/health` - Health check
+
+API docs: http://localhost:8000/docs
+
+See [docs/DIRECT_UPLOAD.md](docs/DIRECT_UPLOAD.md) for detailed documentation on the direct upload flow.
 
 ## Development Modes
 
@@ -70,6 +86,110 @@ docker compose --profile cpu up
 - Uses MediaPipe for actual pose estimation
 - Generates real visualization videos
 
+## Microservices Architecture with Profiles
+
+The system is organized as independent microservices with Redis queue and MinIO S3 storage:
+
+### Services
+
+- **Backend API**: FastAPI server for video uploads and result retrieval
+- **Redis**: Job queue for async video processing
+- **MinIO**: S3-compatible object storage for videos and results
+- **Video Worker**: GPU-accelerated pose estimation processor
+
+### GPU Profiles
+
+Choose one profile based on your hardware:
+
+```bash
+# CPU only (no GPU)
+./manage.sh cpu start
+
+# NVIDIA GPU with CUDA
+./manage.sh nvidia start
+
+# AMD GPU with ROCm
+./manage.sh amd start
+
+# Mac Apple Silicon with Metal
+./manage.sh mac start
+```
+
+### manage.sh Helper Script
+
+Convenient wrapper around Docker Compose commands with profile support:
+
+```bash
+# Start services with a profile
+./manage.sh [profile] start
+
+# View logs
+./manage.sh [profile] logs [service]
+
+# Check status
+./manage.sh [profile] status
+
+# Open shell in container
+./manage.sh [profile] shell-backend
+./manage.sh [profile] shell-worker
+
+# Upload test video
+./manage.sh [profile] test-upload video.mp4
+
+# View dashboards
+./manage.sh minio-console    # MinIO: http://localhost:9001
+./manage.sh rq-dashboard     # RQ Jobs: http://localhost:9181
+
+# Cleanup
+./manage.sh [profile] clean
+```
+
+**Examples:**
+```bash
+./manage.sh start                        # Start with CPU worker (default)
+./manage.sh nvidia start                 # Start with NVIDIA GPU
+./manage.sh amd logs video-worker-amd    # View AMD worker logs
+./manage.sh mac shell-worker             # Shell into Mac worker
+./manage.sh nvidia test-upload video.mp4 # Upload with NVIDIA profile
+```
+
+### Storage Architecture
+
+**Redis** (Job Queue):
+- Stores pending video processing jobs
+- Tracks job status and progress
+- Port: `6379`
+
+**MinIO** (S3-Compatible Storage):
+- Stores uploaded videos in `uploads/{job_id}/`
+- Stores results in `results/{job_id}/`
+- Web Console: `http://localhost:9001` (minioadmin/minioadmin)
+- API: `http://localhost:9000`
+
+### Data Flow
+
+**Direct Upload (Recommended):**
+```
+1. User requests presigned URL → Backend API
+2. Backend generates presigned S3 URL (15 min expiry)
+3. User uploads video directly → MinIO S3
+4. User confirms upload → Backend API
+5. Backend queues job in Redis
+6. Worker picks job from Redis
+7. Worker downloads video from MinIO
+8. Worker processes (pose estimation)
+9. Worker uploads results to MinIO
+10. Worker updates Redis with status
+11. User polls status, downloads results
+```
+
+**Legacy Upload (Deprecated):**
+```
+1. User uploads video → Backend API (loads into memory)
+2. Backend saves to MinIO S3
+3. Backend queues job in Redis
+4. [continues same as above from step 6]
+```
 ## Testing
 
 Run unit tests for pose data structures and mappers:

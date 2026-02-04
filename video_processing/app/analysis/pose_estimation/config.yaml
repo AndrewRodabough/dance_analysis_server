@@ -1,0 +1,51 @@
+# Current Pipeline: RTMDet-L + RTMW-L + MotionBERT
+# - RTMDet-L: Person detection
+# - RTMW-L: 2D wholebody pose estimation (133 keypoints)
+# - MotionBERT: 2D→3D pose lifting (17 body keypoints)
+# - OneEuroFilter: Temporal smoothing
+
+detection:
+  model: rtmdet-l
+  checkpoint: https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_l_8xb32-300e_coco/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth
+  confidence_threshold: 0.5
+
+pose_2d:
+  model: rtmw-l
+  config: rtmw-l_8xb64_cocktail14-384x288
+  checkpoint: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmw-l_simcc-cocktail14_pt-ucoco_270e-384x288-2f7b4d68_20231127.pth
+  num_keypoints: 133  # COCO wholebody format
+
+pose_3d:
+  model: motionbert
+  config: motionbert_dstformer-ft-243frm_8xb32-120e_h36m
+  checkpoint: https://download.openmmlab.com/mmpose/v1/body_3d_keypoint/pose_lift/h36m/motionbert_ft_h36m-d80af323_20230531.pth
+  num_keypoints: 17  # COCO body format
+  temporal_window: 243  # frames of context
+
+smoothing:
+  enabled: true
+  method: one_euro_filter
+  mincutoff: 3.0
+  beta: 0.05
+  dcutoff: 1.0
+
+# Legacy configuration (not currently used)
+legacy:
+  detection_tracking:
+    detection_model: rtmdet
+    tracking_config: ocsort
+    config: models/configs/ocsort_rtmdet_l_test.py
+    checkpoint: models/checkpoints/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth
+
+  pose_estimation:
+    model: dwpose
+    checkpoint: models/checkpoints/dw-ll_ucoco_384.pth
+    config: models/configs/rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288.py
+
+  pose_lifter:
+    model: rtmpose3d
+    checkpoint: models/checkpoints/rtmw3d-l_8xb64_cocktail14-384x288-794dbc78_20240626.pth
+    config: models/configs/rtmw3d-l_8xb64_cocktail14-384x288.py
+
+debug:
+  console_logs: false

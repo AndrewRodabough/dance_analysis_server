@@ -1,70 +1,202 @@
-x-common-config: &common
-  image: dance_analysis_server:latest
-  shm_size: "8gb"
+# Common environment variables
+x-common-env: &common-env
+  PYTHONUNBUFFERED: "1"
+  REDIS_URL: redis://redis:6379/0
+  S3_ENDPOINT: http://minio:9000
+  S3_ACCESS_KEY: minioadmin
+  S3_SECRET_KEY: minioadmin
+  S3_BUCKET: dance-videos
+
+# Device-specific environment anchors
+x-cpu-env: &cpu-env
+  <<: *common-env
+
+x-nvidia-env: &nvidia-env
+  <<: *common-env
+  CUDA_VISIBLE_DEVICES: "0"
+  DEVICE_TYPE: cuda
+
+x-amd-env: &amd-env
+  <<: *common-env
+  HIP_VISIBLE_DEVICES: "0"
+  DEVICE_TYPE: rocm
+
+x-mac-env: &mac-env
+  <<: *common-env
+  DEVICE_TYPE: mps
+
+# Common worker configuration anchor
+x-video-worker-common: &video-worker-common
+  build:
+    context: ./video_processing
+    dockerfile: Dockerfile
   volumes:
-    - ./:/workspace
-  command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-  ports:
-    - "8000:8000"
-  working_dir: /workspace
+    - ./video_processing:/workspace
+    - video-temp:/workspace/temp
+  depends_on:
+    redis:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+  networks:
+    - dance-network
+  restart: unless-stopped
+  command: ["sh", "-c", "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 pose-estimation'"]
 
 services:
-  # Build the shared image once
-  dance_server_build:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    image: dance_analysis_server:latest
-    profiles: ["build"]
-    command: "true"
-
-  # NVIDIA GPU Configuration
-  dance_server_nvidia:
-    <<: *common
-    container_name: dance_analysis_server_nvidia
-    profiles: ["nvidia"]
+    container_name: dance-backend
+    ports:
+      - "8000:8000"
     environment:
-      - DEVICE_TYPE=cuda
+      - REDIS_URL=redis://redis:6379/0
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - S3_BUCKET=dance-videos
+      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-false}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - dance-network
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: dance-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dance-network
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: dance-minio
+    ports:
+      - "9000:9000"      # API
+      - "9001:9001"      # Console
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+    networks:
+      - dance-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Create bucket on startup
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - dance-network
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/dance-videos --ignore-existing;
+      mc anonymous set download myminio/dance-videos;
+      exit 0;
+      "
+
+  video-worker-cpu:
+    <<: *video-worker-common
+    container_name: dance-video-worker-cpu
+    environment: *cpu-env
+    profiles:
+      - cpu
+
+  video-worker-nvidia:
+    <<: *video-worker-common
+    container_name: dance-video-worker-nvidia
+    environment: *nvidia-env
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              count: 1
               capabilities: [gpu]
+    profiles:
+      - nvidia
 
-  # AMD GPU Configuration
-  dance_server_amd:
-    <<: *common
-    container_name: dance_analysis_server_amd
-    profiles: ["amd"]
-    environment:
-      - DEVICE_TYPE=rocm
+  video-worker-amd:
+    <<: *video-worker-common
+    container_name: dance-video-worker-amd
+    environment: *amd-env
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
     group_add:
       - video
-
-  # Mac GPU Configuration (Metal)
-  dance_server_mac:
-    <<: *common
-    container_name: dance_analysis_server_mac
-    profiles: ["mac"]
-    environment:
-      - DEVICE_TYPE=mps
     deploy:
       resources:
         reservations:
           devices:
-            - driver: compute
-              device_ids: ["gpu"]
+            - driver: amd
+              count: 1
               capabilities: [gpu]
+    profiles:
+      - amd
 
-  # CPU-only Configuration
-  dance_server_cpu:
-    <<: *common
-    container_name: dance_analysis_server_cpu
-    profiles: ["cpu"]
+  video-worker-mac:
+    <<: *video-worker-common
+    container_name: dance-video-worker-mac
+    environment: *mac-env
+    profiles:
+      - mac
+
+  rq-dashboard:
+    image: eoranged/rq-dashboard
+    container_name: dance-rq-dashboard
+    ports:
+      - "9181:9181"
     environment:
-      - DEVICE_TYPE=cpu
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - dance-network
+    restart: unless-stopped
+    profiles:
+      - nvidia
+      - amd
+      - mac
+      - amd
+      - mac
+
+volumes:
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  video-temp:
+    driver: local
+
+networks:
+  dance-network:
+    driver: bridge
