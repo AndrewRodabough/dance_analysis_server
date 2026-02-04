@@ -437,45 +437,13 @@ class PoseEstimationPipeline:
             video_path, all_keypoints_2d_17, all_scores_2d, all_bboxes, fps
         )
         
-        # Lift feet from 2D wholebody to 3D using ankle positions as anchors
-        print("[INFO] Lifting feet keypoints to 3D...")
-        all_keypoints_3d_with_feet = []
-        all_scores_3d_extended = []
+        # TEMPORARILY DISABLED: Custom feet lifting
+        # Feet lifting will be re-enabled after skeleton refactoring
+        # For now, we return the 17 body keypoints without custom feet lifting
+        print("[INFO] Custom feet lifting TEMPORARILY DISABLED (skeleton refactoring in progress)")
+        print(f"[INFO] Returning 3D keypoints with {all_keypoints_3d.shape[-1]} points (17 body keypoints only)")
         
-        for frame_idx, (kp2d_wholebody, kp3d_body, scores_3d) in enumerate(
-            zip(all_keypoints_2d, all_keypoints_3d, all_scores_3d)
-        ):
-            # Lift feet to 3D (returns 23 keypoints: 17 body + 6 feet)
-            kp3d_extended = lift_feet_to_3d(kp2d_wholebody, kp3d_body)
-            all_keypoints_3d_with_feet.append(kp3d_extended)
-            
-            # Extend scores to include feet (use ankle scores as proxy)
-            if len(scores_3d.shape) == 1:
-                scores_3d = scores_3d[np.newaxis, ...]
-            
-            num_people = scores_3d.shape[0]
-            scores_extended = np.zeros((num_people, 23))
-            scores_extended[:, :17] = scores_3d[:, :17] if scores_3d.shape[1] >= 17 else np.pad(
-                scores_3d, ((0, 0), (0, 17 - scores_3d.shape[1]))
-            )
-            
-            # Use ankle scores for feet (indices 17-22)
-            # Left feet (17-19) use left ankle score (H36M index 6)
-            # Right feet (20-22) use right ankle score (H36M index 3)
-            for person_idx in range(num_people):
-                left_ankle_score = scores_extended[person_idx, H36M_LEFT_ANKLE]
-                right_ankle_score = scores_extended[person_idx, H36M_RIGHT_ANKLE]
-                scores_extended[person_idx, 17:20] = left_ankle_score
-                scores_extended[person_idx, 20:23] = right_ankle_score
-            
-            all_scores_3d_extended.append(scores_extended)
-            
-            if frame_idx % 100 == 0:
-                print(f"  Frame {frame_idx}/{len(all_keypoints_2d)}")
-        
-        all_keypoints_3d = all_keypoints_3d_with_feet
-        all_scores_3d = all_scores_3d_extended
-        print(f"[INFO] Feet lifting complete: 3D keypoints now have 23 points (17 body + 6 feet)")
+        # Skip the feet lifting code block
         
         # Apply smoothing if requested
         if apply_smoothing:
