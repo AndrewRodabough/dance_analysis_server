@@ -190,3 +190,20 @@ Convenient wrapper around Docker Compose commands with profile support:
 3. Backend queues job in Redis
 4. [continues same as above from step 6]
 ```
+## Testing
+
+Run unit tests for pose data structures and mappers:
+
+```bash
+# Using unittest (built-in)
+python3 -m unittest discover tests
+
+# Using pytest (recommended)
+pip install pytest pytest-cov
+pytest tests/ -v
+
+# With coverage
+pytest tests/ --cov=app.models --cov-report=html
+```
+
+See `tests/README.md` for detailed testing documentation.
