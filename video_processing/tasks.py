@@ -11,6 +11,8 @@ import os
 import tempfile
 import numpy as np
 
+from app.analysis.feedback_pipeline import run_feedback_pipeline
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -176,181 +178,24 @@ def generate_feedback(
     """
     Generate visualization and feedback from keypoints.
     
-    Load keypoints from S3, load video and generate visualization (optional),
-    and feedback, then uploads results to S3.
+    Orchestrates the complete analysis pipeline through modular components.
 
     Args:
         job_id: Unique job identifier
         s3_video_key: S3 key where original video is stored
         num_frames: Number of frames in video
+        local_keypoints_2d_path: Path to 2D keypoints JSON file
+        local_keypoints_3d_path: Path to 3D keypoints JSON file
+        local_video_path: Optional path to video file
 
     Returns:
         Dict with final results and S3 paths
     """
-    job = get_current_job()
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        
-        try:
-            logger.info(f"Generating feedback for job {job_id}")
-
-
-
-            # ------- Load Keypoints ------- #
-            job.meta['status'] = 'Loading keypoints'
-            job.meta['progress'] = 10
-            job.save_meta()
-
-            json_2d_path = local_keypoints_2d_path
-            json_3d_path = local_keypoints_3d_path
-
-            with open(json_2d_path, 'r') as f:
-                keypoints_2d = np.array(json.load(f))
-            
-            with open(json_3d_path, 'r') as f:
-                keypoints_3d = np.array(json.load(f))
-
-            logger.info(f"Loaded keypoints: {len(keypoints_2d)} frames")
-
-
-
-            # ------- Generate Video (optional) ------- #
-            video_path = local_video_path
-            viz_video_path = temp_path / "visualization.mp4"
-            
-            if video_path:
-                # Generate visualization video
-                job.meta['status'] = 'Generating visualization video'
-                job.meta['progress'] = 20
-                job.save_meta()
-
-                # TODO: Generate Visualization
-
-                logger.info(f"Generated visualization video")
-            
-
-
-            # ------- Feature Extraction ------- #
-            job.meta['status'] = 'Extracting Features'
-            job.meta['progress'] = 30
-            job.save_meta()
-
-            features_path = temp_path / "features.txt"
-            
-            features = '' # TODO: Implement actual feature extraction
-
-            with open(features_path, 'w') as f:
-                json.dump(features, f, indent=2)
-
-            logger.info(f"Extracted Features")
-
-
-
-            # ------- Judge Heuristics ------- #
-            job.meta['status'] = 'Judging Heuristics'
-            job.meta['progress'] = 60
-            job.save_meta()
-
-            judge_path = temp_path / "judge.json"
-
-            judge = '' # TODO: Implement actual feature extraction
-
-            with open(judge_path, 'w') as f:
-                json.dump(judge, f, indent=2)
-
-            logger.info(f"Judged heuristics")
-
-
-
-            # ------- Score Calculation ------- #
-            job.meta['status'] = 'Calculating Scores'
-            job.meta['progress'] = 80
-            job.save_meta()
-
-            scores_path = temp_path / "scores.json"
-
-            scores = '' # TODO: Implement actual score calculation
-            
-            with open(scores_path, 'w') as f:
-                json.dump(scores, f, indent=2)
-            
-            logger.info(f"Calculated scores")
-
-
-
-            # ------- Generate Report ------- #
-            job.meta['status'] = 'Generating Report'
-            job.meta['progress'] = 90
-            job.save_meta()
-
-            feedback_path = temp_path / "feedback.txt"
-
-            feedback_text = '' # TODO: Implement actual feedback generation 
-            
-            # write feedback to file
-            with open(feedback_path, 'w') as f:
-                f.write(feedback_text)
-            
-            logger.info(f"Generated Report: {len(feedback_text)} characters")
-
-
-
-            # ------- Upload Results to S3 (including keypoints) ------- #
-            job.meta['status'] = 'Uploading results to S3'
-            job.meta['progress'] = 95
-            job.save_meta()
-
-            logger.info(f"Uploading final results to S3 for job {job_id}")
-
-            # Upload files with retry logic for urllib3 header parsing issues
-            def safe_upload(local_path, s3_key, description):
-                """Upload file to S3, ignoring urllib3 header parsing errors."""
-                try:
-                    s3_client.upload_file(str(local_path), S3_BUCKET, s3_key)
-                    logger.info(f"Uploaded {description}")
-                except Exception as e:
-                    # Check if it's the urllib3 header parsing issue (file actually uploaded)
-                    if "HeaderParsingError" in str(type(e).__name__) or "HeaderParsingError" in str(e):
-                        logger.warning(f"Header parsing warning for {description} (likely uploaded successfully)")
-                    else:
-                        logger.error(f"Failed to upload {description}: {e}")
-                        raise
-
-            safe_upload(json_2d_path, f"results/{job_id}/keypoints_2d.json", "keypoints_2d.json")
-            safe_upload(json_3d_path, f"results/{job_id}/keypoints_3d.json", "keypoints_3d.json")
-            
-            if viz_video_path.exists():
-                safe_upload(viz_video_path, f"results/{job_id}/visualization.mp4", "visualization.mp4")
-
-            safe_upload(feedback_path, f"results/{job_id}/feedback.txt", "feedback.txt")
-            safe_upload(scores_path, f"results/{job_id}/scores.json", "scores.json")
-            safe_upload(features_path, f"results/{job_id}/features.txt", "features.txt")
-            safe_upload(judge_path, f"results/{job_id}/judge.json", "judge.json")
-
-            # Mark complete
-            job.meta['status'] = 'Complete'
-            job.meta['progress'] = 100
-            job.save_meta()
-
-            result = {
-                'status': 'success',
-                'num_frames': num_frames,
-                's3_results': {
-                    'keypoints_2d': f"results/{job_id}/keypoints_2d.json",
-                    'keypoints_3d': f"results/{job_id}/keypoints_3d.json",
-                    'visualization': f"results/{job_id}/visualization.mp4",
-                    'feedback': f"results/{job_id}/feedback.txt",
-                    'scores': f"results/{job_id}/scores.json"
-                }
-            }
-
-            logger.info(f"[CPU] Job {job_id} analysis complete")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error generating feedback: {e}", exc_info=True)
-            job.meta['status'] = 'Failed'
-            job.meta['error'] = str(e)
-            job.save_meta()
-            raise
+    return run_feedback_pipeline(
+        job_id=job_id,
+        s3_bucket=S3_BUCKET,
+        s3_client=s3_client,
+        local_keypoints_2d_path=local_keypoints_2d_path,
+        local_keypoints_3d_path=local_keypoints_3d_path,
+        local_video_path=local_video_path,
+    )
