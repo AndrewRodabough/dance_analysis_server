@@ -41,7 +41,12 @@ x-video-worker-common: &video-worker-common
   networks:
     - dance-network
   restart: unless-stopped
-  command: ["sh", "-c", "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 pose-estimation'"]
+  command:
+    [
+      "sh",
+      "-c",
+      "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 pose-estimation'",
+    ]
 
 services:
   backend:
@@ -59,6 +64,7 @@ services:
       - S3_BUCKET=dance-videos
       - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-false}
       - PYTHONUNBUFFERED=1
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
     volumes:
       - ./backend:/app:ro
     depends_on:
@@ -69,7 +75,16 @@ services:
     networks:
       - dance-network
     restart: unless-stopped
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
 
   redis:
     image: redis:7-alpine
@@ -91,8 +106,8 @@ services:
     image: minio/minio:latest
     container_name: dance-minio
     ports:
-      - "9000:9000"      # API
-      - "9001:9001"      # Console
+      - "9000:9000" # API
+      - "9001:9001" # Console
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
@@ -186,8 +201,22 @@ services:
       - nvidia
       - amd
       - mac
-      - amd
-      - mac
+      - cpu
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dance-cloudflared
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - dance-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    profiles:
+      - tunnel
+      - production
 
 volumes:
   redis-data:
