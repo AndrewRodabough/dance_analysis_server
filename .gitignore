@@ -10,3 +10,5 @@ backend/test_outputs/
 
 *.mp4
 *.pth
+
+.vscode/

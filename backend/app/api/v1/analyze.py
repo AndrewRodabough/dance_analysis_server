@@ -153,24 +153,24 @@ async def confirm_upload_and_start_analysis(
                 detail=f"Video not found in S3. Please upload the file first using the presigned URL."
             )
         
-        # Queue pose estimation job (GPU stage)
-        job = pose_queue.enqueue(
-            'tasks.extract_keypoints',
-            args=[s3_key, job_id],
-            kwargs={'options': {'apply_smoothing': True}},
+        # Queue analysis job
+        local_video_path = f"/workspace/temp/{job_id}/video.mp4"
+        job = analysis_queue.enqueue(
+            'tasks.generate_feedback',
+            args=[job_id, s3_key, local_video_path],
             job_id=job_id,
-            job_timeout='1h',
+            job_timeout='2h',
             result_ttl=86400  # Keep results for 24 hours
         )
         
-        logger.info(f"Job {job_id} queued for pose estimation (GPU stage)")
+        logger.info(f"Job {job_id} queued for analysis")
         
         return {
             "job_id": job_id,
             "status": "queued",
-            "stage": "pose-estimation",
+            "stage": "analysis",
             "s3_key": s3_key,
-            "message": "Video confirmed and queued for pose estimation"
+            "message": "Video confirmed and queued for analysis"
         }
         
     except HTTPException:
@@ -229,24 +229,24 @@ async def submit_video_analysis(
         
         logger.info(f"Video uploaded to S3: {s3_key} ({len(file_content)} bytes)")
         
-        # Normal flow: Queue pose estimation job (GPU stage)
-        job = pose_queue.enqueue(
-            'tasks.extract_keypoints',
-            args=[s3_key, job_id],
-            kwargs={'options': {'apply_smoothing': True}},
+        # Normal flow: Queue analysis job
+        local_video_path = f"/workspace/temp/{job_id}/video.mp4"
+        job = analysis_queue.enqueue(
+            'tasks.generate_feedback',
+            args=[job_id, s3_key, local_video_path],
             job_id=job_id,
-            job_timeout='1h',
+            job_timeout='2h',
             result_ttl=86400  # Keep results for 24 hours
         )
         
-        logger.info(f"Job {job_id} queued for pose estimation (GPU stage)")
+        logger.info(f"Job {job_id} queued for analysis")
         
         return {
             "job_id": job_id,
             "status": "queued",
-            "stage": "pose-estimation",
+            "stage": "analysis",
             "s3_key": s3_key,
-            "message": "Video uploaded and queued for pose estimation"
+            "message": "Video uploaded and queued for analysis"
         }
         
     except Exception as e:

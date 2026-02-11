@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 import itertools
 
 class VectorizedSkeleton:
@@ -58,12 +58,17 @@ class VectorizedSkeleton:
         self.data: Optional[np.ndarray] = None
         self.num_frames = 0
 
-    def load_data(self, raw_data: np.ndarray):
+    def load_data(self, raw_data: Union[np.ndarray, list]):
         """
         Allocates memory and loads motion data.
-        :param raw_data: Numpy array of shape (Frames, Joints, Channels)
+        :param raw_data: Numpy array or nested list of shape (Frames, Joints, Channels)
         """
-        frames, input_joints, channels = raw_data.shape
+        # 1. Convert immediately. 
+        # If it's a list, it becomes an array. If it's already an array, it ensures it's contiguous.
+        data_array = np.ascontiguousarray(raw_data, dtype=np.float32)
+        
+        # 2. Safely extract the shape now that we guarantee it's a NumPy array
+        frames, input_joints, channels = data_array.shape
         
         # Validation
         if input_joints != self.num_joints:
@@ -72,8 +77,8 @@ class VectorizedSkeleton:
         # Update dimensions
         self.num_frames = frames
         
-        # Allocate & Copy (Safe deep copy to ensure contiguous memory)
-        self.data = np.ascontiguousarray(raw_data, dtype=np.float32)
+        # Assign the validated array
+        self.data = data_array
 
         print(f"Loaded {self.num_frames} frames. Skeleton is ready for vector math.")
 
@@ -124,6 +129,73 @@ class VectorizedSkeleton:
         angles = np.arccos(dot_product)  # Shape: (Frames, Num_Angles)
         
         return angles
+
+    def get_joint_velocities(self):
+        """
+        Get velocities of all joints across all frames.
+        Velocity is calculated as the change in position between consecutive frames.
+        
+        Returns:
+            Numpy array of shape (Frames, Joints, Channels) with joint velocities.
+            Frame 0 velocity is approximated using frame 1 velocity.
+        """
+        if self.data is None: 
+            raise RuntimeError("No data loaded!")
+        
+        if self.num_frames == 0:
+            return np.zeros((0, self.num_joints, 3), dtype=np.float32)
+        
+        if self.num_frames == 1:
+            # Single frame: no velocity calculation possible
+            return np.zeros_like(self.data)
+        
+        # Initialize velocities array with same shape as data
+        velocities = np.zeros_like(self.data)  # Shape: (Frames, Joints, Channels)
+        
+        # For frames 1 and onwards, calculate velocity as position difference
+        velocities[1:] = self.data[1:] - self.data[:-1]
+        
+        # Approximate frame 0 velocity using frame 1 velocity
+        velocities[0] = velocities[1]
+        
+        return velocities
+
+    def get_joint_velocity(self, joint_name: str):
+        """
+        Get velocity of a specific joint across all frames.
+        
+        Args:
+            joint_name: Name of the joint
+            
+        Returns:
+            Numpy array of shape (Frames, Channels) with joint velocity.
+            Frame 0 velocity is approximated using frame 1 velocity.
+        """
+        if self.data is None: 
+            raise RuntimeError("No data loaded!")
+        
+        if joint_name not in self.name_to_idx:
+            raise ValueError(f"Joint name not found: {joint_name}")
+        
+        joint_idx = self.name_to_idx[joint_name]
+        
+        if self.num_frames == 0:
+            return np.zeros((0, 3), dtype=np.float32)
+        
+        if self.num_frames == 1:
+            # Single frame: no velocity calculation possible
+            return np.zeros((1, 3), dtype=np.float32)
+        
+        # Initialize velocity array
+        velocity = np.zeros((self.num_frames, 3), dtype=np.float32)
+        
+        # For frames 1 and onwards, calculate velocity as position difference
+        velocity[1:] = self.data[1:, joint_idx, :] - self.data[:-1, joint_idx, :]
+        
+        # Approximate frame 0 velocity using frame 1 velocity
+        velocity[0] = velocity[1]
+        
+        return velocity
 
     def get_bone_length(self, parent_name: str, child_name: str):
         """

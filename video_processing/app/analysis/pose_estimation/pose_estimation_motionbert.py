@@ -5,6 +5,7 @@ Pose estimation pipeline using:
 - MotionBERT for 2D→3D pose lifting (17 body keypoints)
 - OneEuroFilter for temporal smoothing
 """
+from pathlib import Path
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional
@@ -332,7 +333,7 @@ class PoseEstimationPipeline:
         
         print("[INFO] All models loaded successfully!")
     
-    def process_video(self, video_path: str, apply_smoothing: bool = False) -> Tuple[List, List, List]:
+    def process_video(self, video_path: Path, apply_smoothing: bool = False) -> Tuple[List, List, List]:
         """
         Process a video file and return 2D and 3D keypoints.
         
@@ -346,7 +347,7 @@ class PoseEstimationPipeline:
             - keypoints_3d: List of [N, 17, 3] arrays (body 3D)
             - scores: List of [N, 17] arrays (confidence scores for 3D)
         """
-        cap = cv2.VideoCapture(video_path)
+        cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
         
@@ -674,7 +675,7 @@ class PoseEstimationPipeline:
         return smoothed_2d_list, smoothed_3d_list
 
 
-def pose_estimation(filepath_in: str, apply_smoothing: bool = False):
+def pose_estimation(filepath_in: Path, apply_smoothing: bool = False):
     """
     Main entry point for pose estimation.
     
@@ -699,7 +700,7 @@ def pose_estimation(filepath_in: str, apply_smoothing: bool = False):
     # For compatibility with existing code, return before/after (same for now)
     keypoints_3d_before = [kp.copy() for kp in keypoints_3d]
     
-    return keypoints_2d, keypoints_3d, keypoints_3d_before, scores
+    return keypoints_2d, keypoints_3d, scores
 
 
 # Keep the flag for compatibility

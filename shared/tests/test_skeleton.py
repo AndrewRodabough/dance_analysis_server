@@ -307,3 +307,190 @@ class TestEdgeCases:
         
         length = skel.get_bone_length("a", "b")
         assert length.shape == (5,)
+
+
+class TestJointVelocities:
+    """Test joint velocity calculations."""
+
+    def test_get_joint_velocities_single_frame(self):
+        """Test velocity calculation with single frame."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Single frame data
+        data = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]]], dtype=np.float32)
+        skel.load_data(data)
+        
+        velocities = skel.get_joint_velocities()
+        
+        # Should be all zeros for single frame (no approximation possible)
+        assert velocities.shape == (1, 3, 3)
+        assert np.allclose(velocities, 0)
+
+    def test_get_joint_velocities_multiple_frames(self):
+        """Test velocity calculation with multiple frames."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Frame data where each joint moves by [1, 1, 1] per frame
+        data = np.array([
+            [[0, 0, 0], [0, 0, 0], [0, 0, 0]],  # Frame 0
+            [[1, 1, 1], [1, 1, 1], [1, 1, 1]],  # Frame 1 
+            [[2, 2, 2], [2, 2, 2], [2, 2, 2]],  # Frame 2
+            [[3, 3, 3], [3, 3, 3], [3, 3, 3]]   # Frame 3
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        velocities = skel.get_joint_velocities()
+        
+        assert velocities.shape == (4, 3, 3)
+        
+        # Expected velocity for all frames is [1, 1, 1]
+        expected_velocity = np.array([1, 1, 1], dtype=np.float32)
+        
+        # Frame 0 should use frame 1 velocity as approximation
+        for joint in range(3):
+            assert np.allclose(velocities[0, joint], expected_velocity)
+        
+        # Frames 1, 2, 3 should have velocity [1, 1, 1] for all joints
+        for frame in [1, 2, 3]:
+            for joint in range(3):
+                assert np.allclose(velocities[frame, joint], expected_velocity)
+
+    def test_get_joint_velocities_irregular_motion(self):
+        """Test velocity calculation with irregular motion."""
+        joint_names = ["a", "b"]
+        bones = [("a", "b")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Irregular motion data
+        data = np.array([
+            [[0, 0, 0], [0, 0, 0]],  # Frame 0
+            [[1, 2, 3], [4, 5, 6]],  # Frame 1: velocity = [1,2,3] and [4,5,6]
+            [[1, 3, 7], [4, 7, 12]], # Frame 2: velocity = [0,1,4] and [0,2,6]
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        velocities = skel.get_joint_velocities()
+        
+        assert velocities.shape == (3, 2, 3)
+        
+        # Frame 0 should use frame 1 velocity as approximation
+        assert np.allclose(velocities[0, 0], [1, 2, 3])
+        assert np.allclose(velocities[0, 1], [4, 5, 6])
+        
+        # Frame 1 velocities
+        assert np.allclose(velocities[1, 0], [1, 2, 3])
+        assert np.allclose(velocities[1, 1], [4, 5, 6])
+        
+        # Frame 2 velocities
+        assert np.allclose(velocities[2, 0], [0, 1, 4])
+        assert np.allclose(velocities[2, 1], [0, 2, 6])
+
+    def test_get_joint_velocity_specific_joint(self):
+        """Test velocity calculation for a specific joint."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        data = np.array([
+            [[0, 0, 0], [10, 20, 30], [100, 200, 300]],  # Frame 0
+            [[1, 1, 1], [12, 24, 36], [105, 210, 315]],  # Frame 1
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        # Test specific joint velocity
+        velocity_a = skel.get_joint_velocity("a")
+        velocity_b = skel.get_joint_velocity("b")
+        velocity_c = skel.get_joint_velocity("c")
+        
+        assert velocity_a.shape == (2, 3)
+        assert velocity_b.shape == (2, 3)
+        assert velocity_c.shape == (2, 3)
+        
+        # Frame 0 should use frame 1 velocity as approximation
+        assert np.allclose(velocity_a[0], [1, 1, 1])
+        assert np.allclose(velocity_b[0], [2, 4, 6])
+        assert np.allclose(velocity_c[0], [5, 10, 15])
+        
+        # Frame 1 velocities
+        assert np.allclose(velocity_a[1], [1, 1, 1])
+        assert np.allclose(velocity_b[1], [2, 4, 6])
+        assert np.allclose(velocity_c[1], [5, 10, 15])
+
+    def test_get_joint_velocity_invalid_joint(self):
+        """Test error handling for invalid joint name."""
+        joint_names = ["a", "b"]
+        bones = [("a", "b")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        data = np.array([[[0, 0, 0], [0, 0, 0]]], dtype=np.float32)
+        skel.load_data(data)
+        
+        with pytest.raises(ValueError, match="Joint name not found"):
+            skel.get_joint_velocity("nonexistent")
+
+    def test_get_joint_velocities_no_data_loaded(self):
+        """Test error handling when no data is loaded."""
+        joint_names = ["a", "b"]
+        bones = [("a", "b")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        with pytest.raises(RuntimeError, match="No data loaded"):
+            skel.get_joint_velocities()
+            
+        with pytest.raises(RuntimeError, match="No data loaded"):
+            skel.get_joint_velocity("a")
+
+    def test_get_joint_velocities_empty_data(self):
+        """Test velocity calculation with empty data."""
+        joint_names = ["a", "b"]
+        bones = [("a", "b")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Empty data
+        data = np.zeros((0, 2, 3), dtype=np.float32)
+        skel.load_data(data)
+        
+        velocities = skel.get_joint_velocities()
+        velocity_a = skel.get_joint_velocity("a")
+        
+        assert velocities.shape == (0, 2, 3)
+        assert velocity_a.shape == (0, 3)
+
+    def test_velocity_consistency_with_manual_calculation(self):
+        """Test that velocity calculations match manual computation."""
+        joint_names = ["joint1", "joint2"]
+        bones = [("joint1", "joint2")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Create test data with known position changes
+        data = np.array([
+            [[0, 0, 0], [5, 10, 15]],    # Frame 0
+            [[2, 3, 4], [8, 14, 21]],    # Frame 1
+            [[5, 8, 12], [12, 20, 30]]   # Frame 2
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        velocities = skel.get_joint_velocities()
+        
+        # Manual calculation for verification
+        # Frame 0: velocity = velocity of frame 1 (approximation)
+        # Frame 1: velocity = data[1] - data[0]
+        # Frame 2: velocity = data[2] - data[1]
+        
+        expected_vel_1_joint1 = data[1, 0] - data[0, 0]  # [2, 3, 4]
+        expected_vel_1_joint2 = data[1, 1] - data[0, 1]  # [3, 4, 6]
+        expected_vel_2_joint1 = data[2, 0] - data[1, 0]  # [3, 5, 8]
+        expected_vel_2_joint2 = data[2, 1] - data[1, 1]  # [4, 6, 9]
+        
+        # Frame 0 should match frame 1 velocity
+        assert np.allclose(velocities[0, 0], expected_vel_1_joint1)
+        assert np.allclose(velocities[0, 1], expected_vel_1_joint2)
+        
+        assert np.allclose(velocities[1, 0], expected_vel_1_joint1)
+        assert np.allclose(velocities[1, 1], expected_vel_1_joint2)
+        assert np.allclose(velocities[2, 0], expected_vel_2_joint1)
+        assert np.allclose(velocities[2, 1], expected_vel_2_joint2)

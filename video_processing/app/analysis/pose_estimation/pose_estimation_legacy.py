@@ -1,3 +1,4 @@
+from pathlib import Path
 import cv2
 from rtmpose3d import RTMPose3D
 import numpy as np
@@ -10,11 +11,11 @@ from OneEuroFilter import OneEuroFilter
 # Now uses correct perpendicular reflection geometry
 ENABLE_ANATOMICAL_CONSTRAINTS = False  # Set to True to test
 
-def pose_estimation(filepath_in: str, apply_smoothing: bool):
+def pose_estimation(filepath_in: Path, apply_smoothing: bool):
     # Initialize model (auto-downloads checkpoints)
     device = get_device()
     model = RTMPose3D.from_pretrained('rbarac/rtmpose3d', device=device)
-
+    
     # Open video file
     cap = cv2.VideoCapture(filepath_in)
     
