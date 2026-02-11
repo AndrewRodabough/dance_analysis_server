@@ -47,7 +47,6 @@ s3_client_public = boto3.client(
 
 # Redis/RQ setup
 redis_conn = Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
-pose_queue = Queue('pose-estimation', connection=redis_conn)
 analysis_queue = Queue('analysis', connection=redis_conn)
 
 
@@ -156,7 +155,7 @@ async def confirm_upload_and_start_analysis(
         # Queue analysis job
         local_video_path = f"/workspace/temp/{job_id}/video.mp4"
         job = analysis_queue.enqueue(
-            'tasks.generate_feedback',
+            'app.tasks.generate_feedback',
             args=[job_id, s3_key, local_video_path],
             job_id=job_id,
             job_timeout='2h',
@@ -232,7 +231,7 @@ async def submit_video_analysis(
         # Normal flow: Queue analysis job
         local_video_path = f"/workspace/temp/{job_id}/video.mp4"
         job = analysis_queue.enqueue(
-            'tasks.generate_feedback',
+            'app.tasks.generate_feedback',
             args=[job_id, s3_key, local_video_path],
             job_id=job_id,
             job_timeout='2h',

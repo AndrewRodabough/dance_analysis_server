@@ -1,6 +1,7 @@
 # Common environment variables
 x-common-env: &common-env
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: /workspace
   REDIS_URL: redis://redis:6379/0
   S3_ENDPOINT: http://minio:9000
   S3_ACCESS_KEY: minioadmin
@@ -28,11 +29,13 @@ x-mac-env: &mac-env
 # Common worker configuration anchor
 x-video-worker-common: &video-worker-common
   build:
-    context: ./video_processing
-    dockerfile: Dockerfile
+    context: .
+    dockerfile: video_processing/Dockerfile
   volumes:
     - ./video_processing:/workspace
+    - ./shared:/workspace/shared:ro
     - video-temp:/workspace/temp
+    - ./outputs:/workspace/outputs
   depends_on:
     redis:
       condition: service_healthy
@@ -41,7 +44,7 @@ x-video-worker-common: &video-worker-common
   networks:
     - dance-network
   restart: unless-stopped
-  command: ["sh", "-c", "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 pose-estimation'"]
+  command: ["sh", "-c", "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 --path /workspace analysis'"]
 
 services:
   backend:

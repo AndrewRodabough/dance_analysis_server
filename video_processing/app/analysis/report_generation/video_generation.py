@@ -118,10 +118,10 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
 
 
 def generate_side_by_side_video(
-    filepath: str, 
-    pose_2d: VectorizedPoseData, 
-    pose_3d: VectorizedPoseData, 
-    output_dir: str
+    filepath: str,
+    pose_2d: VectorizedPoseData,
+    pose_3d: VectorizedPoseData,
+    output_path: str,
 ):
     """Generates a single video with original+2D on the left and 3D on the right."""
     print("Creating side-by-side 2D/3D visualization...")
@@ -131,7 +131,7 @@ def generate_side_by_side_video(
         print(f"Error: Could not open video file {filepath}")
         return
         
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -145,10 +145,25 @@ def generate_side_by_side_video(
     new_width = int(height * aspect_ratio)
     
     # 3. Setup Video Writer (Using mp4v for better cross-platform compatibility)
-    output_path = Path(output_dir) / "pose_visualization_combined.mp4"
+    output_path = Path(output_path)
+    if output_path.suffix.lower() != ".mp4":
+        output_path = output_path / "pose_visualization_combined.mp4"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     combined_width = width + new_width
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(str(output_path), fourcc, fps, (combined_width, height))
+    fourcc_candidates = ['mp4v', 'avc1', 'H264']
+    out = None
+    for fourcc_tag in fourcc_candidates:
+        fourcc = cv2.VideoWriter_fourcc(*fourcc_tag)
+        writer = cv2.VideoWriter(str(output_path), fourcc, fps, (combined_width, height))
+        if writer.isOpened():
+            out = writer
+            break
+        writer.release()
+
+    if out is None:
+        print(f"Error: Could not open VideoWriter for {output_path}")
+        cap.release()
+        return
     
     frame_idx = 0
     frames_written = 0
@@ -181,4 +196,7 @@ def generate_side_by_side_video(
             
     cap.release()
     out.release()
-    print(f"Success! Saved combined visualization to {output_path}")
+    if frames_written == 0:
+        print(f"Warning: No frames written to {output_path}")
+    else:
+        print(f"Success! Saved combined visualization to {output_path}")

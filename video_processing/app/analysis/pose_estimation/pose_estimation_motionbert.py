@@ -441,8 +441,77 @@ class PoseEstimationPipeline:
         # TEMPORARILY DISABLED: Custom feet lifting
         # Feet lifting will be re-enabled after skeleton refactoring
         # For now, we return the 17 body keypoints without custom feet lifting
+        # Normalize outputs for downstream skeleton loading (frames, joints, dims).
+        def _normalize_keypoints_list(keypoints_list):
+            if isinstance(keypoints_list, np.ndarray):
+                data = keypoints_list
+            else:
+                if not keypoints_list:
+                    return np.zeros((0, 0, 0), dtype=np.float32)
+
+                # Collapse to first person and pad joints to a common length.
+                first_person = []
+                max_joints = 0
+                dims = None
+
+                for item in keypoints_list:
+                    arr = np.asarray(item)
+                    if arr.ndim == 3:
+                        arr = arr[0]
+                    if arr.ndim == 1:
+                        if dims is None:
+                            dims = 2
+                        arr = arr.reshape(-1, dims)
+                    if dims is None:
+                        dims = arr.shape[1]
+                    max_joints = max(max_joints, arr.shape[0])
+                    first_person.append(arr)
+
+                data = np.zeros((len(first_person), max_joints, dims), dtype=np.float32)
+                for idx, arr in enumerate(first_person):
+                    data[idx, :arr.shape[0], :arr.shape[1]] = arr
+
+            # If a person dimension exists, keep the first person for now.
+            if data.ndim == 4:
+                data = data[:, 0, :, :]
+
+            return data
+
+        def _normalize_scores_list(scores_list):
+            if isinstance(scores_list, np.ndarray):
+                data = scores_list
+            else:
+                if not scores_list:
+                    return np.zeros((0, 0), dtype=np.float32)
+
+                first_person = []
+                max_joints = 0
+
+                for item in scores_list:
+                    arr = np.asarray(item)
+                    if arr.ndim == 2:
+                        arr = arr[0]
+                    max_joints = max(max_joints, arr.shape[0])
+                    first_person.append(arr)
+
+                data = np.zeros((len(first_person), max_joints), dtype=np.float32)
+                for idx, arr in enumerate(first_person):
+                    data[idx, :arr.shape[0]] = arr
+
+            if data.ndim == 3:
+                data = data[:, 0, :]
+
+            return data
+
+        all_keypoints_2d = _normalize_keypoints_list(all_keypoints_2d)
+        all_keypoints_3d = _normalize_keypoints_list(all_keypoints_3d)
+        all_scores_3d = _normalize_scores_list(all_scores_3d)
+
         print("[INFO] Custom feet lifting TEMPORARILY DISABLED (skeleton refactoring in progress)")
-        print(f"[INFO] Returning 3D keypoints with {all_keypoints_3d.shape[-1]} points (17 body keypoints only)")
+        if all_keypoints_3d.size > 0:
+            print(f"[INFO] Returning 3D keypoints with {all_keypoints_3d.shape[-2]} points (17 body keypoints only)")
+        else:
+            print("[INFO] Returning 3D keypoints with 0 points (no frames)")
         
         # Skip the feet lifting code block
         
@@ -452,6 +521,8 @@ class PoseEstimationPipeline:
             all_keypoints_2d, all_keypoints_3d = self._apply_smoothing(
                 all_keypoints_2d, all_keypoints_3d, fps
             )
+            all_keypoints_2d = _normalize_keypoints_list(all_keypoints_2d)
+            all_keypoints_3d = _normalize_keypoints_list(all_keypoints_3d)
             print(f"[INFO] Smoothing complete")
         
         return all_keypoints_2d, all_keypoints_3d, all_scores_3d
@@ -476,7 +547,7 @@ class PoseEstimationPipeline:
                 
                 # Process video through 3D inferencer
                 # The human3d inferencer processes video and returns 3D poses
-                result_generator = self.pose3d_inferencer(video_path)
+                result_generator = self.pose3d_inferencer(str(video_path))
                 
                 frame_idx = 0
                 for result in result_generator:
@@ -636,12 +707,12 @@ class PoseEstimationPipeline:
                     num_kp_3d = person_kp3d.shape[0]
                     
                     filters_2d[person_id] = [
-                        [OneEuroFilter(freq=fps, mincutoff=3.0, beta=0.05, dcutoff=1.0) 
+                        [OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.0, dcutoff=1.0) 
                          for _ in range(2)]
                         for _ in range(num_kp_2d)
                     ]
                     filters_3d[person_id] = [
-                        [OneEuroFilter(freq=fps, mincutoff=3.0, beta=0.05, dcutoff=1.0) 
+                        [OneEuroFilter(freq=fps, mincutoff=5.0, beta=0.0, dcutoff=1.0) 
                          for _ in range(3)]
                         for _ in range(num_kp_3d)
                     ]

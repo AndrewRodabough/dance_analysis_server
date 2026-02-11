@@ -65,6 +65,8 @@ def generate_feedback(
         Dict with final results and S3 paths
     """
     
+    # Normalize to Path in case a string path is passed in from RQ.
+    local_video_path = Path(local_video_path)
     # Create parent directory if it doesn't exist
     local_video_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -83,4 +85,5 @@ def generate_feedback(
         s3_client=s3_client,
         local_video_path=local_video_path,
         redis_connection=job.connection,
+        visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4"
     )

@@ -14,7 +14,11 @@ from ..pose_estimation.pose_estimation_motionbert import pose_estimation
 logger = logging.getLogger(__name__)
 
 # Define skeleton config paths
-SKELETON_CONFIGS_DIR = Path(__file__).parent.parent.parent.parent.parent / "configs" / "skeletons"
+_DEFAULT_CONFIG_DIRS = [
+    Path("/workspace/shared/configs/skeletons"),
+    Path(__file__).resolve().parents[4] / "configs" / "skeletons",
+]
+SKELETON_CONFIGS_DIR = next((p for p in _DEFAULT_CONFIG_DIRS if p.exists()), _DEFAULT_CONFIG_DIRS[0])
 
 
 def _load_skeleton_from_config(skeleton_name: str) -> VectorizedSkeleton:
@@ -139,7 +143,7 @@ def run_pose_estimation_pipeline(
         elif local_video_path and local_video_path.exists():
             # Generate keypoints from video
             logger.info(f"Generating keypoints from video: {local_video_path}")
-            keypoints_2d_raw, keypoints_3d_raw, _ = pose_estimation(local_video_path, apply_smoothing=False)
+            keypoints_2d_raw, keypoints_3d_raw, _ = pose_estimation(local_video_path, apply_smoothing=True)
             
             # Load skeleton configurations  
             logger.debug("Loading skeleton configs: coco_w for 2D, human_17 for 3D")
