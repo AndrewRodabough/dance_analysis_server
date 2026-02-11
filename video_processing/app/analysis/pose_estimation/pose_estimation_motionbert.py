@@ -665,12 +665,9 @@ class PoseEstimationPipeline:
                 frame_kp2d.append(person_kp2d)
                 frame_kp3d.append(person_kp3d)
             
-            if num_people == 1:
-                smoothed_2d_list.append(frame_kp2d[0])
-                smoothed_3d_list.append(frame_kp3d[0])
-            else:
-                smoothed_2d_list.append(np.array(frame_kp2d))
-                smoothed_3d_list.append(np.array(frame_kp3d))
+            # THE FIX: Always append as an array to preserve the 'person' dimension
+            smoothed_2d_list.append(np.array(frame_kp2d))
+            smoothed_3d_list.append(np.array(frame_kp3d))
         
         return smoothed_2d_list, smoothed_3d_list
 
@@ -701,7 +698,3 @@ def pose_estimation(filepath_in: Path, apply_smoothing: bool = False):
     keypoints_3d_before = [kp.copy() for kp in keypoints_3d]
     
     return keypoints_2d, keypoints_3d, scores
-
-
-# Keep the flag for compatibility
-ENABLE_ANATOMICAL_CONSTRAINTS = False

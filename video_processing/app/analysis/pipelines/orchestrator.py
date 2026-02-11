@@ -124,9 +124,9 @@ def run_analysis_pipeline(
                 job.save_meta()
             
             stage3_result = run_report_generation_pipeline(
-                job_id=job_id,
-                s3_bucket=s3_bucket,
-                s3_client=s3_client,
+                job_id,
+                pose_data_2d,
+                pose_data_3d,
                 local_video_path=local_video_path,
                 visualization_video_path=visualization_video_path
             )

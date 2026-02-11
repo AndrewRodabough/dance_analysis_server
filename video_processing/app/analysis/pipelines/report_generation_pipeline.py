@@ -4,15 +4,16 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-#from ..report_generator import generate_visualization_video
+from ..report_generation.video_generation import generate_side_by_side_video
+from shared.skeletons.pose_data import VectorizedPoseData
 
 logger = logging.getLogger(__name__)
 
 
 def run_report_generation_pipeline(
     job_id: str,
-    s3_bucket: str,
-    s3_client,
+    pose_2d: VectorizedPoseData, 
+    pose_3d: VectorizedPoseData,
     local_video_path: Optional[Path] = None,
     visualization_video_path: Optional[Path] = None,
 ) -> Dict:
@@ -47,7 +48,7 @@ def run_report_generation_pipeline(
             logger.debug("Generating visualization video")
             
             try:
-                # generate_visualization_video(local_video_path, visualization_video_path)
+                generate_side_by_side_video(str(local_video_path), pose_2d, pose_3d, str(visualization_video_path))
                 logger.info(f"✓ Visualization video created: {visualization_video_path}")
             except Exception as e:
                 logger.warning(f"Could not generate visualization video: {e}")
