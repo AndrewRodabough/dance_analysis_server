@@ -18,23 +18,14 @@ def extract_features(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
     Returns:
         Dictionary containing extracted features
     """
-    try:
-        # TODO: Implement actual feature extraction
-        # This could include:
-        # - Bone lengths
-        # - Joint angles
-        # - Motion velocity
-        # - Symmetry metrics
-        # - etc.
-        
+    try:        
+        walks_straightening = True  # Placeholder for actual heuristic judgment
+
+
         features = {
-            'num_frames': pose_data_3d.num_frames,
-            'num_joints': pose_data_3d.num_joints,
-            'average_confidence': pose_data_3d.get_average_confidence(),
-            # Add more features as they're implemented
+            "walks_straightening": walks_straightening,
         }
         
-        logger.info(f"Extracted features from {pose_data_3d.num_frames} frames")
         return features
         
     except Exception as e:

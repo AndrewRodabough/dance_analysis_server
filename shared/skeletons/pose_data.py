@@ -110,6 +110,24 @@ class VectorizedPoseData:
         result[~valid_mask] = np.nan
         
         return result
+
+    def get_weighted_joint_velocities(self, threshold: float = 0.5) -> np.ndarray:
+        """
+        Get joint velocities, masking out joints with low confidence.
+        
+        Args:
+            threshold: Minimum confidence for the joint
+            
+        Returns:
+            Joint velocities array, NaN where confidence is too low
+        """
+        velocities = self.skeleton.get_joint_velocities()
+        valid_mask = self.confidence >= threshold
+        
+        result = velocities.copy()
+        result[~valid_mask, :] = np.nan
+        
+        return result
     
     def get_joint_confidence(self, joint_name: str) -> np.ndarray:
         """

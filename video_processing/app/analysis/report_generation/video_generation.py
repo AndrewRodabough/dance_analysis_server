@@ -13,6 +13,8 @@ def get_3d_limits(pose_3d: VectorizedPoseData):
     """
     # data shape: (Frames, Joints, 3)
     data = pose_3d.skeleton.data.copy()
+    # Flip axes so positive Y is up in the plot (image coords are Y-down).
+    data[..., 1] = -data[..., 1]
     data[..., 2] = -data[..., 2]  # Flip Z-axis to make pose upright
     
     # confidence shape: (Frames, Joints)
@@ -76,7 +78,8 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
         confidences = pose_3d.confidence[frame_idx]
         bones = pose_3d.skeleton.bones_index
         
-        # Flip Z-axis
+        # Flip axes so positive Y is up in the plot (image coords are Y-down).
+        keypoints[:, 1] = -keypoints[:, 1]
         keypoints[:, 2] = -keypoints[:, 2]
         
         # 1. Draw Bones
