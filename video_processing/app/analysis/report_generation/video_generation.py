@@ -170,6 +170,12 @@ def generate_side_by_side_video(
     
     frame_idx = 0
     frames_written = 0
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    font_thickness = 2
+    text_color = (255, 255, 255)
+    bg_color = (0, 0, 0)
+    text_origin = (12, 28)
     
     while cap.isOpened() and frame_idx < total_frames:
         ret, frame = cap.read()
@@ -189,6 +195,31 @@ def generate_side_by_side_video(
             
         # Combine side-by-side and write
         combined_frame = np.hstack([frame, viz_3d])
+        label = f"Frame {frame_idx}"
+        (text_width, text_height), baseline = cv2.getTextSize(
+            label,
+            font,
+            font_scale,
+            font_thickness,
+        )
+        x, y = text_origin
+        cv2.rectangle(
+            combined_frame,
+            (x - 6, y - text_height - 6),
+            (x + text_width + 6, y + baseline + 6),
+            bg_color,
+            thickness=-1,
+        )
+        cv2.putText(
+            combined_frame,
+            label,
+            (x, y),
+            font,
+            font_scale,
+            text_color,
+            font_thickness,
+            lineType=cv2.LINE_AA,
+        )
         out.write(combined_frame)
         
         frames_written += 1

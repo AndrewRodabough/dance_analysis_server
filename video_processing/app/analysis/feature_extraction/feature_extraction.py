@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 
 from shared.skeletons.pose_data import VectorizedPoseData
-from .leg_straightening_timing import analyze_cha_cha_walk, log_analysis_summary
+from .leg_straightening_timing import analyze_cha_cha_walk, log_analysis_summary, probe_data_ranges
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ def extract_features(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         Dictionary containing extracted features
     """
     try:        
+        probe_data_ranges(pose_data_3d)
         results = analyze_cha_cha_walk(pose_data_3d)
         log_analysis_summary(results)
 

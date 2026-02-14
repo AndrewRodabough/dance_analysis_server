@@ -19,11 +19,12 @@ class WalkingState(Enum):
     ARRIVAL = 3
     COMPLETED = 4
 
-VELOCITY_THRESHOLD = 0.05      # m/s: Minimum speed to consider foot "moving"
-PLANT_THRESHOLD = 0.02         # m/s: Maximum speed to consider foot "planted"
-HIP_DISTANCE_THRESHOLD = 0.1   # Below this = weight fully transferred
-BREAKOUT_THRESHOLD = 0.12      # m: Min horizontal distance to trigger next Release
-PASSING_MIN_DIST = 0.10        # m: Max distance between ankles to be "Passing"
+VELOCITY_THRESHOLD = 0.06      # m/s: Minimum speed to consider foot "moving"
+PLANT_THRESHOLD = 0.05         # m/s: Maximum speed to consider foot "planted"
+HIP_DISTANCE_THRESHOLD = 0.77   # Below this = weight fully transferred
+BREAKOUT_THRESHOLD = 0.16      # m: Min horizontal distance to trigger next Release
+PASSING_MIN_DIST = 0.1        # m: Max distance between ankles to be "Passing"
+PASSING_ENTRANCE_DIST = 0.25
 
 STRAIGHT_LEG_MIN = deg_to_rad(172)  # Minimum angle to be considered "Straight"
 FLEXED_LEG_MAX = deg_to_rad(160)    # Maximum angle to be considered "Flexed" during passing
@@ -74,17 +75,26 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         # STATE: RELEASE (The Drive)
         # ------------------------------------------------------------------
         if current_state == WalkingState.RELEASE:
-            # CHECK 1: Standing leg must stay locked (The Anchor)
-            if standing_knee_angle < STRAIGHT_LEG_MIN:
-                faults.append({"frame": f_idx, "type": "SOFT_STANDING_LEG_IN_DRIVE"})
+            # OPTIMIZATION: Ignore faults if we aren't moving yet (Standing Still)
+            is_moving = active_ankle_velocity > 0.02
+            
+            if is_moving:
+                # CHECK 1: Standing leg must stay locked (The Anchor)
+                if standing_knee_angle < STRAIGHT_LEG_MIN:
+                    faults.append({"frame": f_idx, "type": "SOFT_STANDING_LEG_IN_DRIVE"})
 
-            # CHECK 2: Active leg must flex to drive (The Push)
-            # If moving fast but knee is still locked, they are "falling", not driving
-            if active_ankle_velocity > VELOCITY_THRESHOLD and active_knee_angle > RELEASE_DRIVE_MAX:
-                faults.append({"frame": f_idx, "type": "NO_DRIVE_ACTION"})
+                # CHECK 2: Active leg must flex to drive (The Push)
+                if active_knee_angle > RELEASE_DRIVE_MAX:
+                    faults.append({"frame": f_idx, "type": "NO_DRIVE_ACTION"})
 
-            # TRANSITION: Significant forward velocity
-            if active_ankle_velocity > VELOCITY_THRESHOLD:
+            # TRANSITION LOGIC (Improved)
+            # We move to PASSING if:
+            # 1. We are moving fast enough (Velocity) OR
+            # 2. The ankles are getting close together (Distance)
+            
+            approaching_pass = ankle_distance < PASSING_ENTRANCE_DIST
+            
+            if active_ankle_velocity > VELOCITY_THRESHOLD or (is_moving and approaching_pass):
                 current_state = WalkingState.PASSING
 
 
@@ -103,7 +113,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
                     faults.append({"frame": f_idx, "type": "STIFF_PASSING_LEG"})
 
             # TRANSITION: Active foot moves past the standing foot
-            if ankle_distance > PASSING_MIN_DIST:
+            if ankle_distance < PASSING_MIN_DIST:  # Added buffer to prevent jittery transitions
                  current_state = WalkingState.EXTENSION
 
 
@@ -117,7 +127,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
                 faults.append({"frame": f_idx, "type": "EARLY_LOCK_STUMPING"})
 
             # TRANSITION: Foot slows down (plants) AND is sufficiently forward
-            if active_ankle_velocity < PLANT_THRESHOLD and active_ankle_hip_offset > 0.15:
+            if active_ankle_velocity < PLANT_THRESHOLD and active_ankle_hip_offset > 0.34 and ankle_distance > 0.34:
                 current_state = WalkingState.ARRIVAL
 
 
@@ -130,7 +140,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
                 faults.append({"frame": f_idx, "type": "SOFT_KNEE_ARRIVAL"})
 
             # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
-            if abs(active_ankle_hip_offset) < HIP_DISTANCE_THRESHOLD:
+            if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD:
                 # OFFICIAL HANDOVER
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 current_state = WalkingState.COMPLETED
@@ -148,7 +158,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
 
             # TRANSITION: Hips "break out" forward to start next step
             # We track the distance between the NEW standing leg and the hips
-            if abs(standing_ankle_hip_offset) > BREAKOUT_THRESHOLD: 
+            if standing_ankle_hip_offset > BREAKOUT_THRESHOLD: 
                 current_state = WalkingState.RELEASE
 
 
@@ -302,7 +312,7 @@ def probe_data_ranges(pose_data_3d):
 
     # 2. Extract magnitudes
     # Speed of Left Ankle
-    l_ank_idx = pose_data_3d.skeleton.name_to_idx["left_ankle"]
+    l_ank_idx = pose_data_3d.skeleton.name_to_idx["L_Ankle"]
     speeds = np.linalg.norm(velocities[:, l_ank_idx, :], axis=1)
     
     # Hip-to-Ankle Distance
@@ -322,124 +332,3 @@ def probe_data_ranges(pose_data_3d):
     print(f"  Min: {np.min(ankle_dists):.4f} <-- This should be your NEW 'PASSING_MIN_DIST'")
     print(f"  Max: {np.max(ankle_dists):.4f}")
     print(f"{'='*35}")
-
-
-"""
-def cha_cha_walks_analysis(pose_data_3d: VectorizedPoseData) -> Dict[str, np.ndarray]:
-
-    angles = pose_data_3d.get_weighted_bone_angles(threshold=0)
-    velocities = pose_data_3d.get_weighted_joint_velocities(threshold=0)
-    weight_transfer = compute_weight_transfer_offsets(pose_data_3d)
-    ankle_distance = compute_ankle_to_ankle_distance_xz(pose_data_3d)
-
-    ankle_velocities = velocities[:, [pose_data_3d.skeleton.name_to_idx["left_ankle"], pose_data_3d.skeleton.name_to_idx["right_ankle"]], :]
-    knee_angles = angles[:, [pose_data_3d.skeleton.name_to_idx["left_knee"], pose_data_3d.skeleton.name_to_idx["right_knee"]]]
-
-    current_state = STARTING_STATE
-    current_standing_leg = 0  # 0=left, 1=right
-    current_moving_leg = 1 - current_standing_leg
-    states = []
-
-    logger.info(f"Frame {0}: Phase STARTING - Starting in state COMPLETED")
-
-    for current_frame_idx in range(pose_data_3d.num_frames):
-        states.append(current_state)
-
-        # helper variables for readability
-        active_knee_angle = knee_angles[current_frame_idx, current_moving_leg]
-        standing_knee_angle = knee_angles[current_frame_idx, current_standing_leg]
-        active_ankle_velocity = ankle_velocities[current_frame_idx, current_moving_leg]
-        standing_ankle_velocity = ankle_velocities[current_frame_idx, current_standing_leg] # for logging only
-        active_ankle_hip_offset = weight_transfer[current_frame_idx, current_moving_leg]
-        standing_ankle_hip_offset = weight_transfer[current_frame_idx, current_standing_leg] # for logging only
-
-        logger.info(f""Frame {current_frame_idx}: Current state {current_state.name}\n
-                    active knee angle {active_knee_angle:.2f}, standing knee angle {standing_knee_angle:.2f}\n
-                    active ankle velocity {active_ankle_velocity:.2f}, standing ankle velocity {standing_ankle_velocity:.2f}\n
-                    active ankle-hip offset {active_ankle_hip_offset:.2f}, standing ankle-hip offset {standing_ankle_hip_offset:.2f}"")
-
-
-        if current_state == WalkingState.RELEASE:
-            # ACTION: Back leg pushes; hips drive forward.
-            # KNEE-ACTIVE: 165 -> 150 (Unlocking to drive)
-            # KNEE-STANDING: 180 (Anchor)
-            # TRANSITION: Moving ankle velocity exceeds a threshold, indicating movement.
-
-            if active_knee_angle > deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase RELEASE - Active knee angle {active_knee_angle:.2f} exceeds 170 degrees")
-            if standing_knee_angle < deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase RELEASE - Standing knee angle {standing_knee_angle:.2f} below 170 degrees")
-
-            if active_ankle_velocity > VELOCITY_THRESHOLD:
-                logger.info(f"Frame {current_frame_idx}: Phase RELEASE transition to PASSING - ankle velocity {active_ankle_velocity:.2f} exceeds threshold")
-                current_state = WalkingState.PASSING
-
-
-        elif current_state == WalkingState.PASSING:
-            # ACTION: "Bow and Arrow" (knees are closest together).
-            # KNEE-ACTIVE: 150 -> 135 (Deep flexion for floor clearance)
-            # KNEE-STANDING: 180 (The "Bow" pillar)
-            # TRANSITION: Moving ankle passes the standing ankle on the motion axis.
-
-            if active_knee_angle > deg_to_rad(150):
-                logger.info(f"Frame {current_frame_idx}: Phase PASSING - Active knee angle {active_knee_angle:.2f} exceeds 150 degrees")
-            if standing_knee_angle < deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase PASSING - Standing knee angle {standing_knee_angle:.2f} below 170 degrees")
-
-            if is_past_standing_leg(current_frame_idx):
-                logger.info(f"Frame {current_frame_idx}: Phase PASSING transition to EXTENSION - active ankle has passed standing ankle")
-                current_state = WalkingState.EXTENSION
-
-
-        elif current_state == WalkingState.EXTENSION:
-            # ACTION: Reaching for the floor; active straightening begins.
-            # KNEE-ACTIVE: 135 -> 175 (The "Arrow" firing forward)
-            # KNEE-STANDING: 180 (The Anchor)
-            # TRANSITION: Ankle velocity drops toward zero, indicating the foot has hit the floor.
-
-            if active_knee_angle > deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase EXTENSION - Active knee angle {active_knee_angle:.2f} exceeds 170 degrees")
-            if standing_knee_angle < deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase EXTENSION - Standing knee angle {standing_knee_angle:.2f} below 170 degrees")
-
-            if active_ankle_velocity < VELOCITY_THRESHOLD:
-                logger.info(f"Frame {current_frame_idx}: Phase EXTENSION transition to ARRIVAL - ankle velocity {active_ankle_velocity:.2f} below threshold {VELOCITY_THRESHOLD:.2f}")
-                current_state = WalkingState.ARRIVAL
-
-
-        elif current_state == WalkingState.ARRIVAL:
-            # ACTION: The "Double Straight" check; weight is splitting.
-            # KNEE-ACTIVE: 175 -> 180 (Snap to full extension)
-            # KNEE-STANDING: 180 (Must still be straight for International style)
-            # TRANSITION: Center of Mass (Hips) moves directly over the active ankle.
-
-            if active_knee_angle < deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase ARRIVAL - Active knee angle {active_knee_angle:.2f} below 170 degrees")
-            if standing_knee_angle < deg_to_rad(170):
-                logger.info(f"Frame {current_frame_idx}: Phase EXTENSION - Standing knee angle {standing_knee_angle:.2f} below 170 degrees")
-
-            if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD: 
-                logger.info(f"Frame {current_frame_idx}: Phase ARRIVAL transition to COMPLETED - ankle-hip offset {active_ankle_hip_offset:.2f} below threshold {HIP_DISTANCE_THRESHOLD:.2f}")
-                
-                current_state = WalkingState.COMPLETED
-                
-                # legs swap roles
-                current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
-
-
-        elif current_state == WalkingState.COMPLETED:
-            # ACTION: Hips settle laterally (Cuban Motion); back leg prepares to release.
-            # KNEE-NEW_STANDING: 180 (Locked over the weight)
-            # KNEE-NEW_MOVING: 180 -> 165 (Softening because weight has left it)
-            # TRANSITION: Hips move forward again, breaking the vertical alignment.
-
-            if standing_ankle_hip_offset > HIP_DISTANCE_THRESHOLD: 
-
-                current_state = WalkingState.RELEASE
-
-
-        else:
-            raise ValueError(f"Unknown state: {current_state}")
-  
- 
- """
