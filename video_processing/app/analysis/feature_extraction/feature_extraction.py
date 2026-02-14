@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Any
 
 from shared.skeletons.pose_data import VectorizedPoseData
+from .leg_straightening_timing import analyze_cha_cha_walk, log_analysis_summary
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +20,16 @@ def extract_features(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         Dictionary containing extracted features
     """
     try:        
-        walks_straightening = True  # Placeholder for actual heuristic judgment
+        results = analyze_cha_cha_walk(pose_data_3d)
+        log_analysis_summary(results)
 
-
+        """
         features = {
-            "walks_straightening": walks_straightening,
+            "walks_straightening": results,
         }
+        """
         
-        return features
+        return {}
         
     except Exception as e:
         logger.error(f"Error extracting features: {e}")
