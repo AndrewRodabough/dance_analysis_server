@@ -209,14 +209,13 @@ services:
       timeout: 5s
       retries: 5
 
-  promtail:
-    image: grafana/promtail:2.9.4
-    container_name: dance-promtail
+  alloy:
+    image: grafana/alloy:latest
+    container_name: dance-alloy
     volumes:
-      - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: -config.file=/etc/promtail/config.yaml
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
     depends_on:
       loki:
         condition: service_healthy

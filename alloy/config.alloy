@@ -1,0 +1,59 @@
+// Docker log discovery
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+// Only keep dance-* containers
+discovery.relabel "docker_filter" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(dance-.*)"
+    target_label  = "container_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/dance-.*"
+    action        = "keep"
+  }
+}
+
+// Collect logs from discovered containers
+loki.source.docker "docker_logs" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.docker_filter.output
+  forward_to    = [loki.process.docker_logs.receiver]
+  refresh_interval = "5s"
+}
+
+// Process and parse logs
+loki.process "docker_logs" {
+  forward_to = [loki.write.loki.receiver]
+
+  // Parse JSON logs from our application
+  stage.json {
+    expressions = {
+      level      = "level",
+      service    = "service",
+      event_type = "event_type",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level      = "",
+      service    = "",
+      event_type = "",
+    }
+  }
+}
+
+// Send to Loki
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
