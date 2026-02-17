@@ -1,0 +1,62 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape Docker container logs
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*.log
+
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            timestamp: time
+            container_id: attrs.container_id
+      
+      # Extract container name from Docker labels
+      - json:
+          expressions:
+            container_name: attrs.container_name
+          source: output
+      
+      # Use the log content as the log line
+      - output:
+          source: output
+      
+      # Add labels for filtering
+      - labels:
+          stream:
+          container_name:
+
+      # Parse JSON logs from our application
+      - match:
+          selector: '{container_name=~"dance-.*"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  logger: logger
+                  service: service
+                  event_type: event_type
+                  request_id: request_id
+                  job_id: job_id
+                  status_code: status_code
+            - labels:
+                level:
+                logger:
+                service:
+                event_type:
