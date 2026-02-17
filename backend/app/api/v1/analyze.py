@@ -1,17 +1,21 @@
 """Video analysis endpoints - upload, queue, and status tracking."""
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, status, Query
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, Query, Depends
+from sqlalchemy.orm import Session
 from typing import Dict, Any
-import uuid
 import os
 import logging
 from pathlib import Path
 
-from redis import Redis
-from rq import Queue
-from rq.job import Job
 import boto3
 from botocore.client import Config
+
+from app.database import get_db
+from app.core.deps import get_current_active_user
+from app.models.user import User
+from app.models.job import Job as DBJob, JobStatus
+from app.schemas.job import JobCreate, JobStatusUpdate
+from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +49,12 @@ s3_client_public = boto3.client(
     region_name='us-east-1'
 )
 
-# Redis/RQ setup
-redis_conn = Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
-pose_queue = Queue('pose-estimation', connection=redis_conn)
-analysis_queue = Queue('analysis', connection=redis_conn)
-
-
 @router.post("/upload-url", summary="Request presigned upload URL", status_code=status.HTTP_200_OK)
 async def request_upload_url(
     filename: str = Query(..., description="Name of the video file"),
-    content_type: str = Query("video/mp4", description="MIME type of the video")
+    content_type: str = Query("video/mp4", description="MIME type of the video"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Request a presigned URL for direct upload to S3.
@@ -86,11 +86,16 @@ async def request_upload_url(
             detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
         )
     
-    # Generate unique job ID
-    job_id = str(uuid.uuid4())
+    # Create job in PostgreSQL
+    job_data = JobCreate(filename=filename)
+    db_job = JobService.create_job(db, current_user.id, job_data)
+    job_id = db_job.job_id
     
     # S3 key structure: uploads/{job_id}/{filename}
     s3_key = f"uploads/{job_id}/{filename}"
+    
+    # Update job with video path
+    JobService.update_job_video_path(db, job_id, s3_key)
     
     try:
         # Generate presigned URL for direct upload (valid for 15 minutes)
@@ -127,7 +132,9 @@ async def request_upload_url(
 @router.post("/confirm", summary="Confirm upload and start analysis", status_code=status.HTTP_202_ACCEPTED)
 async def confirm_upload_and_start_analysis(
     job_id: str = Query(..., description="Job ID from upload-url endpoint"),
-    s3_key: str = Query(..., description="S3 key from upload-url endpoint")
+    s3_key: str = Query(..., description="S3 key from upload-url endpoint"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Confirm that a video has been uploaded to S3 and start the analysis pipeline.
@@ -142,6 +149,14 @@ async def confirm_upload_and_start_analysis(
     **Returns:**
     - Job details and queuing status
     """
+    # Verify job exists and belongs to user
+    db_job = JobService.get_job_by_id(db, job_id, current_user.id)
+    if not db_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or access denied"
+        )
+    
     try:
         # Verify the object exists in S3
         try:
@@ -153,24 +168,16 @@ async def confirm_upload_and_start_analysis(
                 detail=f"Video not found in S3. Please upload the file first using the presigned URL."
             )
         
-        # Queue pose estimation job (GPU stage)
-        job = pose_queue.enqueue(
-            'tasks.extract_keypoints',
-            args=[s3_key, job_id],
-            kwargs={'options': {'apply_smoothing': True}},
-            job_id=job_id,
-            job_timeout='1h',
-            result_ttl=86400  # Keep results for 24 hours
-        )
-        
-        logger.info(f"Job {job_id} queued for pose estimation (GPU stage)")
+        # Job is already in PostgreSQL with PENDING status
+        # Worker will pick it up automatically
+        logger.info(f"Job {job_id} ready for processing")
         
         return {
             "job_id": job_id,
-            "status": "queued",
-            "stage": "pose-estimation",
+            "status": "pending",
+            "stage": "queued",
             "s3_key": s3_key,
-            "message": "Video confirmed and queued for pose estimation"
+            "message": "Video confirmed and queued for processing"
         }
         
     except HTTPException:
@@ -185,7 +192,9 @@ async def confirm_upload_and_start_analysis(
 
 @router.post("", summary="Submit video for analysis (legacy)", status_code=status.HTTP_202_ACCEPTED)
 async def submit_video_analysis(
-    file: UploadFile = File(..., description="Video file (mp4, avi, mov)")
+    file: UploadFile = File(..., description="Video file (mp4, avi, mov)"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Upload a dance video for pose estimation analysis.
@@ -211,8 +220,10 @@ async def submit_video_analysis(
             detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
         )
     
-    # Generate unique job ID
-    job_id = str(uuid.uuid4())
+    # Create job in PostgreSQL
+    job_data = JobCreate(filename=file.filename)
+    db_job = JobService.create_job(db, current_user.id, job_data)
+    job_id = db_job.job_id
     
     # S3 key structure: uploads/{job_id}/{filename}
     s3_key = f"uploads/{job_id}/{file.filename}"
@@ -227,19 +238,13 @@ async def submit_video_analysis(
             ContentType=file.content_type or 'video/mp4'
         )
         
+        # Update job with video path
+        JobService.update_job_video_path(db, job_id, s3_key)
+        
         logger.info(f"Video uploaded to S3: {s3_key} ({len(file_content)} bytes)")
         
-        # Normal flow: Queue pose estimation job (GPU stage)
-        job = pose_queue.enqueue(
-            'tasks.extract_keypoints',
-            args=[s3_key, job_id],
-            kwargs={'options': {'apply_smoothing': True}},
-            job_id=job_id,
-            job_timeout='1h',
-            result_ttl=86400  # Keep results for 24 hours
-        )
-        
-        logger.info(f"Job {job_id} queued for pose estimation (GPU stage)")
+        # Job is in PostgreSQL with PENDING status - worker will pick it up
+        logger.info(f"Job {job_id} ready for processing")
         
         return {
             "job_id": job_id,
@@ -258,19 +263,23 @@ async def submit_video_analysis(
 
 
 @router.get("/{job_id}/status", summary="Check analysis status")
-async def get_analysis_status(job_id: str) -> Dict:
+async def get_analysis_status(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> Dict:
     """
     Check the processing status of a video analysis job.
     
     **Possible statuses**:
-    - `queued`: Waiting for worker
-    - `started`: Processing in progress
-    - `finished`: Complete and ready
+    - `pending`: Job created, waiting to be queued
+    - `processing`: Being processed by worker
+    - `completed`: Complete and ready
     - `failed`: Error occurred
     """
-    try:
-        job = Job.fetch(job_id, connection=redis_conn)
-    except:
+    # First check PostgreSQL for job ownership
+    db_job = JobService.get_job_by_id(db, job_id, current_user.id)
+    if not db_job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found"
@@ -278,58 +287,44 @@ async def get_analysis_status(job_id: str) -> Dict:
     
     response = {
         'job_id': job_id,
-        'status': job.get_status(),
-        'created_at': job.created_at.isoformat() if job.created_at else None,
-        'started_at': job.started_at.isoformat() if job.started_at else None,
-        'ended_at': job.ended_at.isoformat() if job.ended_at else None,
+        'status': db_job.status.value,
+        'filename': db_job.filename,
+        'created_at': db_job.created_at.isoformat() if db_job.created_at else None,
+        'started_at': db_job.started_at.isoformat() if db_job.started_at else None,
+        'completed_at': db_job.completed_at.isoformat() if db_job.completed_at else None,
     }
     
-    # Add progress info from job metadata
-    if job.meta:
-        response['progress'] = job.meta.get('progress', 0)
-        response['message'] = job.meta.get('status', '')
-        if 'error' in job.meta:
-            response['error'] = job.meta['error']
-    
-    # Add result summary if complete
-    if job.is_finished and job.result:
-        response['result'] = {
-            'num_frames': job.result.get('num_frames'),
-            'status': job.result.get('status')
-        }
+    # Add error message if failed
+    if db_job.error_message:
+        response['error'] = db_job.error_message
     
     return response
 
 
 @router.get("/{job_id}/result", summary="Get analysis results")
-async def get_analysis_result(job_id: str) -> Dict:
+async def get_analysis_result(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> Dict:
     """
     Get the complete results of a finished video analysis.
     
     Returns pose estimation data and links to download visualization video.
     """
-    try:
-        job = Job.fetch(job_id, connection=redis_conn)
-    except:
+    # Check PostgreSQL for job ownership
+    db_job = JobService.get_job_by_id(db, job_id, current_user.id)
+    if not db_job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found"
         )
     
-    if not job.is_finished:
+    if db_job.status != JobStatus.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Job not complete. Current status: {job.get_status()}"
+            detail=f"Job not complete. Current status: {db_job.status.value}"
         )
-    
-    if job.is_failed:
-        error_msg = str(job.exc_info) if job.exc_info else "Unknown error"
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Job failed: {error_msg}"
-        )
-    
-    result = job.result
     
     try:
         # Generate pre-signed URLs for downloading (valid for 1 hour)
@@ -354,13 +349,12 @@ async def get_analysis_result(job_id: str) -> Dict:
         return {
             "status": "complete",
             "job_id": job_id,
-            "num_frames": result.get('num_frames'),
+            "filename": db_job.filename,
             "downloads": {
                 "keypoints_2d": keypoints_2d_url,
                 "keypoints_3d": keypoints_3d_url,
                 "visualization": visualization_url
-            },
-            "s3_results": result.get('s3_results')
+            }
         }
         
     except Exception as e:
@@ -372,17 +366,23 @@ async def get_analysis_result(job_id: str) -> Dict:
 
 
 @router.delete("/{job_id}", summary="Delete job and results")
-async def delete_job(job_id: str) -> Dict:
+async def delete_job(
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> Dict:
     """
     Delete a job and all associated files from S3.
     
     Useful for cleaning up completed or failed jobs.
     """
-    try:
-        job = Job.fetch(job_id, connection=redis_conn)
-        job.delete()
-    except:
-        pass  # Job might not exist in Redis
+    # Delete from PostgreSQL (also verifies ownership)
+    deleted = JobService.delete_job(db, job_id, current_user.id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or access denied"
+        )
     
     # Delete files from S3
     try:

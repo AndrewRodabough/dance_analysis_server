@@ -1,10 +1,9 @@
-"""RQ worker tasks for video processing - GPU stage + analysis."""
+"""Video processing tasks - GPU stage + analysis."""
 
 from pathlib import Path
 import json
-from typing import Dict
+from typing import Dict, Callable, Optional
 import logging
-from rq import get_current_job
 import boto3
 from botocore.client import Config
 import os
@@ -41,12 +40,118 @@ TEMP_DIR = Path("/workspace/temp")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def process_job(
+    job_id: str,
+    s3_key: str,
+    filename: str,
+    options: Dict = None,
+    status_callback: Optional[Callable[[str, int], None]] = None
+) -> Dict:
+    """
+    Process a video analysis job (called by PostgreSQL worker).
+
+    Args:
+        job_id: Unique job identifier
+        s3_key: S3 key where video is stored
+        filename: Original filename
+        options: Processing options
+        status_callback: Optional callback(status, progress) for status updates
+
+    Returns:
+        Dict with result paths and metadata
+    """
+    def update_status(status: str, progress: int):
+        if status_callback:
+            status_callback(status, progress)
+        logger.info(f"[{job_id}] {status} ({progress}%)")
+
+    local_video_path = TEMP_DIR / f"{job_id}_input.mp4"
+
+    try:
+        logger.info(f"Processing job {job_id}: {s3_key}")
+
+        # Step 1: Download video from S3
+        update_status('Downloading video from S3', 10)
+        logger.info(f"Downloading {s3_key} to {local_video_path}")
+        s3_client.download_file(S3_BUCKET, s3_key, str(local_video_path))
+        logger.info(f"Download complete: {local_video_path.stat().st_size} bytes")
+
+        # Step 2: Run pose estimation
+        update_status('Extracting pose data', 30)
+        options = options or {}
+        apply_smoothing = options.get('apply_smoothing', True)
+
+        if USE_MOCK_ANALYSIS:
+            logger.info(f"Using MOCK keypoints for job {job_id}")
+            test_outputs = Path("/workspace/test_outputs")
+
+            with open(test_outputs / "keypoints_2d.json", 'r') as f:
+                keypoints_2d = np.array(json.load(f))
+
+            with open(test_outputs / "keypoints_3d.json", 'r') as f:
+                keypoints_3d = np.array(json.load(f))
+        else:
+            logger.info(f"Running GPU pose estimation for {job_id}")
+            from app.analysis.pose_estimation.pose_estimation import pose_estimation
+
+            keypoints_2d, keypoints_3d, _, _ = pose_estimation(
+                str(local_video_path),
+                apply_smoothing=apply_smoothing
+            )
+
+        logger.info(f"Pose estimation complete: {len(keypoints_2d)} frames")
+
+        # Step 3: Save keypoints locally
+        update_status('Saving keypoints', 60)
+        json_2d_path = TEMP_DIR / f"{job_id}_keypoints_2d.json"
+        json_3d_path = TEMP_DIR / f"{job_id}_keypoints_3d.json"
+
+        with open(json_2d_path, 'w') as f:
+            json.dump(np.asarray(keypoints_2d).tolist(), f)
+
+        with open(json_3d_path, 'w') as f:
+            json.dump(np.asarray(keypoints_3d).tolist(), f)
+
+        # Step 4: Generate feedback and upload results
+        update_status('Generating feedback', 80)
+        analysis_result = generate_feedback(
+            job_id=job_id,
+            s3_video_key=s3_key,
+            num_frames=len(keypoints_2d),
+            local_keypoints_2d_path=json_2d_path,
+            local_keypoints_3d_path=json_3d_path,
+            local_video_path=local_video_path
+        )
+
+        # Step 5: Cleanup
+        logger.info(f"Cleaning up temporary files for job {job_id}")
+        local_video_path.unlink(missing_ok=True)
+        json_2d_path.unlink(missing_ok=True)
+        json_3d_path.unlink(missing_ok=True)
+
+        update_status('Complete', 100)
+
+        return {
+            'status': 'success',
+            'num_frames': len(keypoints_2d),
+            'result_path': f"results/{job_id}/visualization.mp4",
+            'data_path': f"results/{job_id}/keypoints_3d.json",
+            's3_results': analysis_result.get('s3_results') if isinstance(analysis_result, dict) else None
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing job {job_id}: {e}", exc_info=True)
+        if local_video_path.exists():
+            local_video_path.unlink()
+        raise
+
+
 def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
     """
     GPU Stage: Extract 2D and 3D keypoints from video.
     
-    Downloads video from S3, runs pose estimation, saves keypoints to S3,
-    then enqueues the analysis stage.
+    LEGACY: This function is for RQ worker compatibility.
+    New deployments should use process_job() instead.
 
     Args:
         s3_key: S3 key where video is stored
@@ -56,25 +161,33 @@ def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
     Returns:
         Dict with keypoints paths and metadata
     """
-    job = get_current_job()
+    # Try to get RQ job for progress updates, but don't fail if not available
+    try:
+        from rq import get_current_job
+        job = get_current_job()
+    except:
+        job = None
+
     local_video_path = TEMP_DIR / f"{job_id}_input.mp4"
 
     try:
         logger.info(f"[GPU] Extracting keypoints from S3: {s3_key} (job: {job_id})")
 
         # Step 1: Download video from S3
-        job.meta['status'] = 'Downloading video from S3'
-        job.meta['progress'] = 10
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Downloading video from S3'
+            job.meta['progress'] = 10
+            job.save_meta()
 
         logger.info(f"Downloading {s3_key} to {local_video_path}")
         s3_client.download_file(S3_BUCKET, s3_key, str(local_video_path))
         logger.info(f"Download complete: {local_video_path.stat().st_size} bytes")
 
         # Step 2: Run pose estimation (or use mock data)
-        job.meta['status'] = 'Extracting pose data (GPU)'
-        job.meta['progress'] = 30
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Extracting pose data (GPU)'
+            job.meta['progress'] = 30
+            job.save_meta()
 
         options = options or {}
         apply_smoothing = options.get('apply_smoothing', True)
@@ -102,9 +215,10 @@ def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
             logger.info(f"Pose estimation complete: {len(keypoints_2d)} frames")
 
         # Step 3: Save keypoints locally
-        job.meta['status'] = 'Saving keypoints'
-        job.meta['progress'] = 60
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Saving keypoints'
+            job.meta['progress'] = 60
+            job.save_meta()
 
         json_2d_path = TEMP_DIR / f"{job_id}_keypoints_2d.json"
         json_3d_path = TEMP_DIR / f"{job_id}_keypoints_3d.json"
@@ -120,9 +234,10 @@ def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
             json.dump(data_3d, f)
 
         # Step 4: Run analysis sequentially on this worker
-        job.meta['status'] = 'Running analysis'
-        job.meta['progress'] = 80
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Running analysis'
+            job.meta['progress'] = 80
+            job.save_meta()
 
         analysis_result = generate_feedback(
             job_id=job_id,
@@ -139,9 +254,10 @@ def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
         json_2d_path.unlink(missing_ok=True)
         json_3d_path.unlink(missing_ok=True)
 
-        job.meta['status'] = 'Complete'
-        job.meta['progress'] = 100
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Complete'
+            job.meta['progress'] = 100
+            job.save_meta()
 
         result = {
             'status': 'success',
@@ -154,9 +270,10 @@ def extract_keypoints(s3_key: str, job_id: str, options: Dict = None) -> Dict:
 
     except Exception as e:
         logger.error(f"Error extracting keypoints: {e}", exc_info=True)
-        job.meta['status'] = 'Failed'
-        job.meta['error'] = str(e)
-        job.save_meta()
+        if job:
+            job.meta['status'] = 'Failed'
+            job.meta['error'] = str(e)
+            job.save_meta()
 
         # Cleanup on failure
         if local_video_path.exists():
