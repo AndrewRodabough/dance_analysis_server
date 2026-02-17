@@ -9,54 +9,33 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Scrape Docker container logs
   - job_name: docker
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: docker
-          __path__: /var/lib/docker/containers/*/*.log
-
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Only keep containers with "dance-" prefix
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(dance-.*)'
+        target_label: container_name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/dance-.*'
+        action: keep
     pipeline_stages:
-      # Parse Docker JSON log format
+      # Parse Docker JSON log wrapper
       - json:
           expressions:
             output: log
             stream: stream
-            timestamp: time
-            container_id: attrs.container_id
-      
-      # Extract container name from Docker labels
-      - json:
-          expressions:
-            container_name: attrs.container_name
-          source: output
-      
-      # Use the log content as the log line
       - output:
           source: output
-      
-      # Add labels for filtering
       - labels:
           stream:
-          container_name:
-
-      # Parse JSON logs from our application
-      - match:
-          selector: '{container_name=~"dance-.*"}'
-          stages:
-            - json:
-                expressions:
-                  level: level
-                  logger: logger
-                  service: service
-                  event_type: event_type
-                  request_id: request_id
-                  job_id: job_id
-                  status_code: status_code
-            - labels:
-                level:
-                logger:
-                service:
-                event_type:
+      # Parse our app's JSON logs
+      - json:
+          expressions:
+            level: level
+            event_type: event_type
+      - labels:
+          level:
+          event_type:
