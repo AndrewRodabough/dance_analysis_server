@@ -4,6 +4,7 @@ python-multipart==0.0.6
 boto3==1.34.14
 numpy
 opencv-python
+python-json-logger==2.0.7
 
 # Database
 sqlalchemy==2.0.23
