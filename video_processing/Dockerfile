@@ -29,5 +29,5 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p temp outputs
 
-# Default command: Start RQ worker listening to video-processing queue
-CMD ["python3", "-m", "rq", "worker", "--url", "redis://redis:6379/0", "video-processing"]
+# Default command: Start PostgreSQL-polling worker
+CMD ["python3", "worker.py"]

@@ -1,9 +1,10 @@
-from fastapi import FastAPI
 from pathlib import Path
 
 from app.api.v1 import analyze, health, videos
 from app.core.logging import setup_logging
 from app.middleware.logging import RequestLoggingMiddleware
+from app.api.v1 import analyze, auth, health, jobs, videos
+from fastapi import FastAPI
 
 
 def create_app() -> FastAPI:
@@ -21,12 +22,14 @@ def create_app() -> FastAPI:
     # Add request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
     
+
     # Include routers with prefixes
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
     app.include_router(analyze.router, prefix="/api/v1", tags=["analyze"])
     app.include_router(videos.router, prefix="/api/v1", tags=["videos"])
 
     return app
-
 
 app = create_app()

@@ -1,1 +1,1 @@
-"""Core application utilities."""
+# Core module for configuration and security utilities
