@@ -58,7 +58,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
-      - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      - S3_PUBLIC_ENDPOINT=https://storage.valoren.click
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin
       - S3_BUCKET=dance-videos
@@ -79,7 +79,16 @@ services:
     networks:
       - dance-network
     restart: unless-stopped
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
 
   redis:
     image: redis:7-alpine
@@ -101,8 +110,8 @@ services:
     image: minio/minio:latest
     container_name: dance-minio
     ports:
-      - "9000:9000"      # API
-      - "9001:9001"      # Console
+      - "9000:9000" # API
+      - "9001:9001" # Console
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
@@ -233,7 +242,15 @@ services:
       - dance-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:3100/ready"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--output-document=-",
+          "http://localhost:3100/ready",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
