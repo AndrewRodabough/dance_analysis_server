@@ -1,23 +1,19 @@
-<CorsConfiguration>
-  <!-- Allow browser clients from storage.valoren.click to access MinIO -->
+<CORSConfiguration>
   <CORSRule>
     <AllowedOrigin>https://storage.valoren.click</AllowedOrigin>
-    <!-- If you also use http locally for testing, you can add:
-         <AllowedOrigin>http://localhost:3000</AllowedOrigin>
-         but MinIO expects one origin per rule, so use multiple rules. -->
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>POST</AllowedMethod>
     <AllowedMethod>DELETE</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
-    <!-- Allow all headers from the browser, including Authorization for signed requests -->
+
+    <!-- Allow any headers that the browser might send -->
     <AllowedHeader>*</AllowedHeader>
-    <!-- Common response headers that JS clients often need to read -->
+
+    <!-- Optional but safe: basic headers that clients may want to read -->
     <ExposeHeader>ETag</ExposeHeader>
-    <ExposeHeader>x-amz-request-id</ExposeHeader>
-    <ExposeHeader>x-amz-id-2</ExposeHeader>
-    <ExposeHeader>x-amz-meta-*</ExposeHeader>
-    <!-- Cache preflight results for 1 hour -->
+
+    <!-- Cache the preflight response for 1 hour -->
     <MaxAgeSeconds>3600</MaxAgeSeconds>
   </CORSRule>
-</CorsConfiguration>
+</CORSConfiguration>
