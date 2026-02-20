@@ -13,10 +13,7 @@ def get_3d_limits(pose_3d: VectorizedPoseData):
     """
     # data shape: (Frames, Joints, 3)
     data = pose_3d.skeleton.data.copy()
-    # Flip axes so positive Y is up in the plot (image coords are Y-down).
-    data[..., 1] = -data[..., 1]
-    data[..., 2] = -data[..., 2]  # Flip Z-axis to make pose upright
-    
+
     # confidence shape: (Frames, Joints)
     mask = pose_3d.confidence > 0.3
     
@@ -49,20 +46,43 @@ def draw_skeleton_2d(frame, pose_2d: VectorizedPoseData, frame_idx: int):
     confidences = pose_2d.confidence[frame_idx]   # Shape: (Joints,)
     bones = pose_2d.skeleton.bones_index          # Shape: (2, Num_Bones)
     
-    # 1. Draw Bones
+    # Validate that data dimensions match expectations
+    num_joints = keypoints.shape[0]
+    if num_joints != confidences.shape[0]:
+        print(f"Warning: Keypoint count mismatch at frame {frame_idx}: "
+              f"{num_joints} keypoints vs {confidences.shape[0]} confidences")
+        return frame
+    
+    # 1. Draw Bones with bounds checking
     for i in range(bones.shape[1]):
         p1_idx, p2_idx = bones[0, i], bones[1, i]
+        
+        # Validate bone indices are within range
+        if p1_idx >= num_joints or p2_idx >= num_joints:
+            print(f"Warning: Invalid bone index at frame {frame_idx}: "
+                  f"bone[{p1_idx}, {p2_idx}] exceeds {num_joints} joints")
+            continue
         
         # Only draw if both endpoints are confident
         if confidences[p1_idx] > 0.3 and confidences[p2_idx] > 0.3:
             pt1 = (int(keypoints[p1_idx, 0]), int(keypoints[p1_idx, 1]))
             pt2 = (int(keypoints[p2_idx, 0]), int(keypoints[p2_idx, 1]))
-            cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
             
-    # 2. Draw Joints
+            # Validate coordinates are within frame bounds
+            h, w = frame.shape[:2]
+            if (0 <= pt1[0] < w and 0 <= pt1[1] < h and 
+                0 <= pt2[0] < w and 0 <= pt2[1] < h):
+                cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
+            
+    # 2. Draw Joints with bounds checking
     for i, pt in enumerate(keypoints):
+        if i >= len(confidences):
+            break
         if confidences[i] > 0.3:
-            cv2.circle(frame, (int(pt[0]), int(pt[1])), 3, (0, 0, 255), -1)
+            x, y = int(pt[0]), int(pt[1])
+            h, w = frame.shape[:2]
+            if 0 <= x < w and 0 <= y < h:
+                cv2.circle(frame, (x, y), 3, (0, 0, 255), -1)
             
     return frame
 
@@ -78,22 +98,36 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
         confidences = pose_3d.confidence[frame_idx]
         bones = pose_3d.skeleton.bones_index
         
-        # Flip axes so positive Y is up in the plot (image coords are Y-down).
-        keypoints[:, 1] = -keypoints[:, 1]
-        keypoints[:, 2] = -keypoints[:, 2]
-        
-        # 1. Draw Bones
+        # Validate data dimensions
+        num_joints = keypoints.shape[0]
+        if num_joints != confidences.shape[0]:
+            print(f"Warning: 3D keypoint count mismatch at frame {frame_idx}: "
+                  f"{num_joints} keypoints vs {confidences.shape[0]} confidences")
+            plt.close(fig)
+            return np.zeros((int(fig_size[0]*100), int(fig_size[1]*100), 3), dtype=np.uint8)
+
+        # 1. Draw Bones with bounds checking
         for i in range(bones.shape[1]):
             p1_idx, p2_idx = bones[0, i], bones[1, i]
+            
+            # Validate bone indices
+            if p1_idx >= num_joints or p2_idx >= num_joints:
+                print(f"Warning: Invalid 3D bone index at frame {frame_idx}: "
+                      f"bone[{p1_idx}, {p2_idx}] exceeds {num_joints} joints")
+                continue
+                
             if confidences[p1_idx] > 0.3 and confidences[p2_idx] > 0.3:
                 pt1, pt2 = keypoints[p1_idx], keypoints[p2_idx]
-                ax.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]], [pt1[2], pt2[2]], 'g-', linewidth=2)
+                ax.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]], [pt1[2], pt2[2]], 
+                       'g-', linewidth=2)
                 
-        # 2. Draw Joints
+        # 2. Draw Joints with validation
         valid_mask = confidences > 0.3
-        valid_kps = keypoints[valid_mask]
-        if len(valid_kps) > 0:
-            ax.scatter(valid_kps[:, 0], valid_kps[:, 1], valid_kps[:, 2], c='r', s=20)
+        if valid_mask.sum() > 0:
+            valid_kps = keypoints[valid_mask]
+            if len(valid_kps) > 0:
+                ax.scatter(valid_kps[:, 0], valid_kps[:, 1], valid_kps[:, 2], 
+                          c='r', s=20)
             
     # Set labels and limits
     ax.set_xlabel('X (m)')
@@ -107,7 +141,7 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
         ax.set_ylim([center[1] - range_val, center[1] + range_val])
         ax.set_zlim([center[2] - range_val, center[2] + range_val])
         
-    ax.view_init(elev=15, azim=45)
+    ax.view_init(elev=15, azim=90)
     
     # Convert plot to cv2 image
     canvas = FigureCanvasAgg(fig)
@@ -128,6 +162,24 @@ def generate_side_by_side_video(
 ):
     """Generates a single video with original+2D on the left and 3D on the right."""
     print("Creating side-by-side 2D/3D visualization...")
+    
+    # Validate pose data integrity before processing
+    print(f"Pose 2D: {pose_2d.num_frames} frames, {pose_2d.skeleton.num_joints} joints")
+    print(f"Pose 3D: {pose_3d.num_frames} frames, {pose_3d.skeleton.num_joints} joints")
+    
+    # Check for data consistency
+    if pose_2d.skeleton.num_joints != pose_2d.skeleton.data.shape[1]:
+        print(f"ERROR: 2D skeleton config mismatch - "
+              f"expected {pose_2d.skeleton.num_joints} joints, "
+              f"got {pose_2d.skeleton.data.shape[1]} in data")
+        return
+    
+    if pose_3d.skeleton.num_joints != pose_3d.skeleton.data.shape[1]:
+        print(f"ERROR: 3D skeleton config mismatch - "
+              f"expected {pose_3d.skeleton.num_joints} joints, "
+              f"got {pose_3d.skeleton.data.shape[1]} in data")
+        return
+    
     cap = cv2.VideoCapture(filepath)
     
     if not cap.isOpened():

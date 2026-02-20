@@ -1,115 +1,33 @@
-"""
-Pose estimation pipeline using:
-- RTMDet-L for person detection
-- RTMW-L for 2D pose estimation (133 keypoints, wholebody)
-- MotionBERT for 2D→3D pose lifting (17 body keypoints)
-- OneEuroFilter for temporal smoothing
-"""
 from pathlib import Path
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional
 from collections import deque
+import logging
 
 from app.utils.device_manager import get_device
 from OneEuroFilter import OneEuroFilter
 
-# Model URLs
-RTMDET_L_CONFIG = 'rtmdet_l_8xb32-300e_coco'
-RTMDET_L_CHECKPOINT = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_l_8xb32-300e_coco/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth'
+logger = logging.getLogger(__name__)
 
-RTMW_L_CONFIG = 'rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288'
-RTMW_L_CHECKPOINT = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmw-l_simcc-cocktail14_pt-ucoco_270e-384x288-2f7b4d68_20231127.pth'
+# Path to video_processing/ directory (4 levels up from this file)
+# File structure: video_processing/app/analysis/pose_estimation/pose_estimation_motionbert.py
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
+MODELS = ROOT / 'models'
+CONFIGS = MODELS / 'configs'
+CHECKPOINTS = MODELS / 'checkpoints'
 
-MOTIONBERT_CONFIG = 'configs/body_3d_keypoint/motionbert/h36m/motionbert_dstformer-ft-243frm_8xb32-120e_h36m.py'
-MOTIONBERT_CHECKPOINT = 'https://download.openmmlab.com/mmpose/v1/body_3d_keypoint/pose_lift/h36m/motionbert_ft_h36m-d80af323_20230531.pth'
+# Model Paths
+DET_CFG: Path = CONFIGS / 'rtmdet_l_8xb32-300e_coco.py'
+DET_CKPT: Path = CHECKPOINTS / 'rtmdet_l_8xb32-300e_coco.pth'
 
-# COCO 17-keypoint indices within the 133 wholebody keypoints
-# COCO body keypoints are the first 17 in wholebody format
-COCO_17_INDICES = list(range(17))
+POSE2D_CFG: Path = CONFIGS / 'rtmpose-l_8xb256-420e_coco-384x288.py'
+POSE2D_CKPT: Path = CHECKPOINTS / 'rtmpose-l_simcc-body7_pt-body7_420e-384x288.pth'
 
-# Mapping from COCO 17 to H36M 17 format
-# H36M format:
-#  0: Pelvis (Hip center) <- (COCO 11 + 12) / 2
-#  1: Right Hip <- COCO 12
-#  2: Right Knee <- COCO 14
-#  3: Right Ankle <- COCO 16
-#  4: Left Hip <- COCO 11
-#  5: Left Knee <- COCO 13
-#  6: Left Ankle <- COCO 15
-#  7: Spine <- (pelvis + thorax) / 2 (synthetic)
-#  8: Thorax <- (COCO 5 + 6) / 2
-#  9: Neck/Nose <- COCO 0
-# 10: Head <- (COCO 3 + 4) / 2 (between ears)
-# 11: Left Shoulder <- COCO 5
-# 12: Left Elbow <- COCO 7
-# 13: Left Wrist <- COCO 9
-# 14: Right Shoulder <- COCO 6
-# 15: Right Elbow <- COCO 8
-# 16: Right Wrist <- COCO 10
+LIFT3D_CFG: Path = CONFIGS / 'motionbert_dstformer-ft-243frm_8xb32-120e_h36m_modified.py'
+LIFT3D_CKPT: Path = CHECKPOINTS / 'motionbert_ft_h36m.pth'
 
-def coco_to_h36m(coco_keypoints: np.ndarray) -> np.ndarray:
-    """
-    Convert COCO 17-keypoint format to H36M 17-keypoint format.
-    
-    Args:
-        coco_keypoints: Array of shape (17, 2) or (17, 3) in COCO format
-    
-    Returns:
-        Array of same shape in H36M format
-    """
-    ndim = coco_keypoints.shape[-1]
-    h36m = np.zeros((17, ndim))
-    
-    # Pelvis (center of hips)
-    h36m[0] = (coco_keypoints[11] + coco_keypoints[12]) / 2
-    # Right hip, knee, ankle
-    h36m[1] = coco_keypoints[12]
-    h36m[2] = coco_keypoints[14]
-    h36m[3] = coco_keypoints[16]
-    # Left hip, knee, ankle
-    h36m[4] = coco_keypoints[11]
-    h36m[5] = coco_keypoints[13]
-    h36m[6] = coco_keypoints[15]
-    # Thorax (center of shoulders)
-    thorax = (coco_keypoints[5] + coco_keypoints[6]) / 2
-    h36m[8] = thorax
-    # Spine (between pelvis and thorax)
-    h36m[7] = (h36m[0] + thorax) / 2
-    # Neck/Nose
-    h36m[9] = coco_keypoints[0]
-    # Head (between ears)
-    h36m[10] = (coco_keypoints[3] + coco_keypoints[4]) / 2
-    # Left arm
-    h36m[11] = coco_keypoints[5]
-    h36m[12] = coco_keypoints[7]
-    h36m[13] = coco_keypoints[9]
-    # Right arm
-    h36m[14] = coco_keypoints[6]
-    h36m[15] = coco_keypoints[8]
-    h36m[16] = coco_keypoints[10]
-    
-    return h36m
-
-# MotionBERT requires 243 frames of temporal context
-MOTIONBERT_SEQ_LEN = 243
-
-# COCO Wholebody foot keypoint indices (within 133-keypoint format)
-# 17: Left big toe, 18: Left small toe, 19: Left heel
-# 20: Right big toe, 21: Right small toe, 22: Right heel
-COCO_LEFT_ANKLE = 15
-COCO_RIGHT_ANKLE = 16
-COCO_LEFT_BIG_TOE = 17
-COCO_LEFT_SMALL_TOE = 18
-COCO_LEFT_HEEL = 19
-COCO_RIGHT_BIG_TOE = 20
-COCO_RIGHT_SMALL_TOE = 21
-COCO_RIGHT_HEEL = 22
-
-# H36M ankle indices (within 17-keypoint format)
-H36M_LEFT_ANKLE = 6
-H36M_RIGHT_ANKLE = 3
-
+MOTIONBERT_SEQ_LEN = 243 # MotionBERT requires 243 frames of temporal context
 
 def lift_feet_to_3d(keypoints_2d_wholebody: np.ndarray, 
                    keypoints_3d_h36m: np.ndarray,
@@ -275,63 +193,98 @@ def _compute_foot_offset_3d(foot_index: int, foot_2d: np.ndarray,
     offset_3d = np.array([x_offset, y_offset, z_offset])
     return offset_3d
 
-
 class PoseEstimationPipeline:
-    """
-    Complete pose estimation pipeline:
-    1. RTMDet-L detects people
-    2. RTMW-L estimates 2D poses (133 keypoints)
-    3. MotionBERT lifts 2D to 3D (17 keypoints)
-    4. OneEuroFilter smooths output
-    """
     
     def __init__(self, device: Optional[str] = None):
         self.device = device or get_device()
+        self.pose3d_model_name = None  # Will be set during model initialization
         self._init_models()
         
     def _init_models(self):
-        """Initialize detection and pose models"""
-        print(f"[INFO] Initializing models on {self.device}...")
-        
-        # Lazy imports to avoid loading mmpose at module level
+        """Initialize detection and pose models using unified MMPoseInferencer approach"""
+        logger.info(f"Initializing models on {self.device}...")
         from mmpose.apis import MMPoseInferencer
         
-        # Initialize 2D pose inferencer with RTMPose wholebody
-        # Use the 'wholebody' alias which uses RTMPose-M wholebody + RTMDet-M
-        # Or use specific config if available
-        print("[INFO] Loading detector and wholebody 2D pose estimator...")
+        # Use MMPose's built-in model names - automatically downloads configs and weights
+        
+        # Initialize 2D-only inferencer for frame-by-frame processing
+        logger.info("Loading detector and 2D pose estimator (auto-download)...")
         try:
-            # Try using the wholebody alias first (RTMPose-M wholebody + RTMDet-M)
-            self.pose2d_inferencer = MMPoseInferencer(
-                pose2d='wholebody',
+            self.inferencer_2d = MMPoseInferencer(
+                det_model='rtmdet-l',  # Auto-download RTMDet-L
+                det_cat_ids=[0],  # 0 = Person class in COCO
+                pose2d='rtmpose-l',  # Auto-download RTMPose-L
                 device=self.device,
             )
-        except ValueError:
-            # Fallback to rtmpose-l with wholebody config
-            print("[INFO] Wholebody alias not found, trying rtmpose-l...")
-            self.pose2d_inferencer = MMPoseInferencer(
-                pose2d='rtmpose-l_8xb32-270e_coco-wholebody-384x288',
-                device=self.device,
-                det_model='rtmdet-m',
-                det_cat_ids=[0],
+            logger.info("✓ 2D pose estimator loaded successfully")
+        except Exception as e:
+            raise ValueError(f"2D model loading failed: {e}")
+        
+        # Initialize full pipeline inferencer (2D + 3D) for video processing
+        logger.info("Loading 3D pose estimator...")
+        
+        # Try available 3D pose models in order of preference
+        pose3d_models = [
+            # Try local MotionBERT first (most accurate)
+            ({
+                'config': str(LIFT3D_CFG),
+                'checkpoint': str(LIFT3D_CKPT)
+            }, 'MotionBERT (local)'),
+            # Fallback to MMPose registry models
+            ('human3d', 'Human3D'),
+            ('video-pose-lift', 'VideoPose3D'),
+        ]
+        
+        last_error = None
+        for model_spec, display_name in pose3d_models:
+            try:
+                logger.info(f"  Trying {display_name}...")
+                
+                # Handle dict (local files) vs string (registry name)
+                if isinstance(model_spec, dict):
+                    # Check if local files exist
+                    config_path = Path(model_spec['config'])
+                    ckpt_path = Path(model_spec['checkpoint'])
+                    
+                    if not config_path.exists():
+                        logger.debug(f"  Config not found: {config_path}")
+                        raise FileNotFoundError(f"Config not found: {config_path}")
+                    if not ckpt_path.exists():
+                        logger.debug(f"  Checkpoint not found: {ckpt_path}")
+                        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+                    
+                    # Use local files
+                    self.inferencer = MMPoseInferencer(
+                        det_model='rtmdet-l',
+                        det_cat_ids=[0],
+                        pose2d='rtmpose-l',
+                        pose3d=model_spec,
+                        device=self.device,
+                    )
+                else:
+                    # Use registry name
+                    self.inferencer = MMPoseInferencer(
+                        det_model='rtmdet-l',
+                        det_cat_ids=[0],
+                        pose2d='rtmpose-l',
+                        pose3d=model_spec,
+                        device=self.device,
+                    )
+                
+                logger.info(f"✓ 3D pose estimator loaded: {display_name}")
+                self.pose3d_model_name = display_name
+                break
+            except Exception as e:
+                logger.debug(f"  Failed to load '{display_name}': {e}")
+                last_error = e
+                continue
+        else:
+            # None of the models worked
+            raise ValueError(
+                f"Failed to load any 3D pose model. Last error: {last_error}"
             )
         
-        # Initialize 3D pose lifter (MotionBERT)
-        print("[INFO] Loading MotionBERT pose lifter...")
-        try:
-            self.pose3d_inferencer = MMPoseInferencer(
-                pose3d='human3d',
-                device=self.device,
-            )
-        except ValueError:
-            print("[INFO] human3d alias not found, trying direct config...")
-            self.pose3d_inferencer = MMPoseInferencer(
-                pose3d='motionbert_dstformer-ft-243frm_8xb32-120e_h36m',
-                pose3d_weights=MOTIONBERT_CHECKPOINT,
-                device=self.device,
-            )
-        
-        print("[INFO] All models loaded successfully!")
+        logger.info("✓ All models loaded successfully!")
     
     def process_video(self, video_path: Path, apply_smoothing: bool = False) -> Tuple[List, List, List]:
         """
@@ -354,7 +307,7 @@ class PoseEstimationPipeline:
         fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
-        print(f"[INFO] Processing video: {total_frames} frames @ {fps} FPS")
+        logger.info(f"Processing video: {total_frames} frames @ {fps} FPS")
         
         # Collect all 2D poses first
         all_keypoints_2d = []
@@ -369,10 +322,10 @@ class PoseEstimationPipeline:
                 break
             
             if frame_idx % 50 == 0:
-                print(f"  Processing frame {frame_idx}/{total_frames} (2D pose)...")
+                logger.info(f"  Processing frame {frame_idx}/{total_frames} (2D pose)...")
             
-            # Run 2D pose estimation
-            result_generator = self.pose2d_inferencer(frame)
+            # Run 2D pose estimation using unified inferencer
+            result_generator = self.inferencer_2d(frame)
             results_2d = next(result_generator)
             
             # Extract predictions - handle different result structures
@@ -539,64 +492,61 @@ class PoseEstimationPipeline:
         num_frames = len(keypoints_2d_list)
         
         try:
-            if hasattr(self, 'pose3d_inferencer') and self.pose3d_inferencer is not None:
-                print(f"  Running 3D inferencer on video: {video_path}")
+            print(f"  Running 3D inferencer on video: {video_path}")
+            
+            all_keypoints_3d = []
+            all_scores_3d = []
+            
+            # Process video through unified 3D inferencer
+            # MotionBERT uses temporal context (243 frames) for accurate 3D lifting
+            result_generator = self.inferencer(str(video_path))
+            
+            frame_idx = 0
+            for result in result_generator:
+                if frame_idx % 50 == 0:
+                    print(f"    Frame {frame_idx}/{num_frames}")
                 
-                all_keypoints_3d = []
-                all_scores_3d = []
-                
-                # Process video through 3D inferencer
-                # The human3d inferencer processes video and returns 3D poses
-                result_generator = self.pose3d_inferencer(str(video_path))
-                
-                frame_idx = 0
-                for result in result_generator:
-                    if frame_idx % 50 == 0:
-                        print(f"    Frame {frame_idx}/{num_frames}")
+                # Extract 3D keypoints from result
+                if 'predictions' in result and len(result['predictions']) > 0:
+                    preds = result['predictions']
+                    # Handle nested structure
+                    if isinstance(preds[0], list):
+                        preds = preds[0]
                     
-                    # Extract 3D keypoints from result
-                    if 'predictions' in result and len(result['predictions']) > 0:
-                        preds = result['predictions']
-                        # Handle nested structure
-                        if isinstance(preds[0], list):
-                            preds = preds[0]
-                        
-                        if len(preds) > 0:
-                            pred = preds[0]
-                            # Get 3D keypoints
-                            if isinstance(pred, dict):
-                                kp3d = np.array(pred.get('keypoints', np.zeros((17, 3))))
-                            else:
-                                kp3d = np.array(getattr(pred, 'keypoints', np.zeros((17, 3))))
-                            
-                            # Ensure correct shape
-                            if len(kp3d.shape) == 1:
-                                kp3d = kp3d.reshape(-1, 3)
-                            
-                            all_keypoints_3d.append(kp3d[np.newaxis, ...])
-                            
-                            # Use 2D scores for confidence
-                            if frame_idx < len(scores_list):
-                                scores = scores_list[frame_idx]
-                                if len(scores.shape) > 1:
-                                    scores = scores[0]
-                                scores = scores[:17] if len(scores) >= 17 else np.pad(scores, (0, 17-len(scores)))
-                            else:
-                                scores = np.ones(17)
-                            all_scores_3d.append(scores[np.newaxis, ...])
+                    if len(preds) > 0:
+                        pred = preds[0]
+                        # Get 3D keypoints
+                        if isinstance(pred, dict):
+                            kp3d = np.array(pred.get('keypoints', np.zeros((17, 3))))
                         else:
-                            all_keypoints_3d.append(np.zeros((1, 17, 3)))
-                            all_scores_3d.append(np.zeros((1, 17)))
+                            kp3d = np.array(getattr(pred, 'keypoints', np.zeros((17, 3))))
+                        
+                        # Ensure correct shape
+                        if len(kp3d.shape) == 1:
+                            kp3d = kp3d.reshape(-1, 3)
+                        
+                        all_keypoints_3d.append(kp3d[np.newaxis, ...])
+                        
+                        # Use 2D scores for confidence
+                        if frame_idx < len(scores_list):
+                            scores = scores_list[frame_idx]
+                            if len(scores.shape) > 1:
+                                scores = scores[0]
+                            scores = scores[:17] if len(scores) >= 17 else np.pad(scores, (0, 17-len(scores)))
+                        else:
+                            scores = np.ones(17)
+                        all_scores_3d.append(scores[np.newaxis, ...])
                     else:
                         all_keypoints_3d.append(np.zeros((1, 17, 3)))
                         all_scores_3d.append(np.zeros((1, 17)))
-                    
-                    frame_idx += 1
+                else:
+                    all_keypoints_3d.append(np.zeros((1, 17, 3)))
+                    all_scores_3d.append(np.zeros((1, 17)))
                 
-                print(f"[INFO] 3D inference complete: {len(all_keypoints_3d)} frames")
-                return all_keypoints_3d, all_scores_3d
-            else:
-                raise ValueError("No pose3d inferencer available")
+                frame_idx += 1
+            
+            print(f"[INFO] 3D inference complete: {len(all_keypoints_3d)} frames")
+            return all_keypoints_3d, all_scores_3d
                 
         except Exception as e:
             print(f"[WARNING] 3D video inferencer failed: {e}")

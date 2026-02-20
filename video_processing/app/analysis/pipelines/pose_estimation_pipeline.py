@@ -114,9 +114,9 @@ def run_pose_estimation_pipeline(
             keypoints_2d_raw = _load_keypoints_from_json_file(local_keypoints_2d_path)
             keypoints_3d_raw = _load_keypoints_from_json_file(local_keypoints_3d_path)
             
-            # Load skeleton configurations (for now: hardcoded coco_w for 2D, human_17 for 3D)
-            logger.debug("Loading skeleton configs: coco_w for 2D, human_17 for 3D")
-            skeleton_2d = _load_skeleton_from_config('coco_w')
+            # Load skeleton configurations (COCO format for 2D, H36M for 3D)
+            logger.debug("Loading skeleton configs: coco_17 for 2D, human_17 for 3D")
+            skeleton_2d = _load_skeleton_from_config('coco_17')
             skeleton_3d = _load_skeleton_from_config('human_17')
             
             # Load keypoint data into skeletons
@@ -145,9 +145,9 @@ def run_pose_estimation_pipeline(
             logger.info(f"Generating keypoints from video: {local_video_path}")
             keypoints_2d_raw, keypoints_3d_raw, _ = pose_estimation(local_video_path, apply_smoothing=True)
             
-            # Load skeleton configurations  
-            logger.debug("Loading skeleton configs: coco_w for 2D, human_17 for 3D")
-            skeleton_2d = _load_skeleton_from_config('coco_w')
+            # Load skeleton configurations (COCO format for 2D, H36M for 3D)
+            logger.debug("Loading skeleton configs: coco_17 for 2D, human_17 for 3D")
+            skeleton_2d = _load_skeleton_from_config('coco_17')
             skeleton_3d = _load_skeleton_from_config('human_17')
             
             # Load keypoint data into skeletons

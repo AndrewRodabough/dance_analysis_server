@@ -200,6 +200,8 @@ class ScenePoseData:
         self,
         people: List[VectorizedPoseData],
         fps: float,
+        lead_id: Optional[int] = None,
+        follow_id: Optional[int] = None,
         video_width: Optional[int] = None,
         video_height: Optional[int] = None,
         model_name: Optional[str] = None,
