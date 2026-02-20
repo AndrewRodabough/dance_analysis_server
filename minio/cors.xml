@@ -1,19 +1,7 @@
 <CORSConfiguration>
   <CORSRule>
     <AllowedOrigin>https://storage.valoren.click</AllowedOrigin>
-    <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
-    <AllowedMethod>POST</AllowedMethod>
-    <AllowedMethod>DELETE</AllowedMethod>
-    <AllowedMethod>HEAD</AllowedMethod>
-
-    <!-- Allow any headers that the browser might send -->
     <AllowedHeader>*</AllowedHeader>
-
-    <!-- Optional but safe: basic headers that clients may want to read -->
-    <ExposeHeader>ETag</ExposeHeader>
-
-    <!-- Cache the preflight response for 1 hour -->
-    <MaxAgeSeconds>3600</MaxAgeSeconds>
   </CORSRule>
 </CORSConfiguration>
