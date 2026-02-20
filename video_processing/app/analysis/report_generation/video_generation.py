@@ -6,6 +6,40 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from mpl_toolkits.mplot3d import Axes3D
 from shared.skeletons.pose_data import VectorizedPoseData
 
+
+def get_limb_color(joint_name: str):
+    """
+    Returns color (BGR format for OpenCV) based on limb laterality.
+    Blue (255, 0, 0) for left limbs
+    Green (0, 255, 0) for right limbs
+    Gray (128, 128, 128) for midline/neutral joints
+    """
+    if "left" in joint_name.lower():
+        return (255, 0, 0)  # Blue for left
+    elif "right" in joint_name.lower():
+        return (0, 255, 0)  # Green for right
+    else:
+        return (128, 128, 128)  # Gray for neutral/midline
+
+
+def get_bone_color(skeleton, p1_idx: int, p2_idx: int):
+    """
+    Determines bone color based on the joint names of bone endpoints.
+    Prioritizes left/right classification; uses gray for neutral bones.
+    """
+    p1_name = skeleton.idx_to_name[p1_idx]
+    p2_name = skeleton.idx_to_name[p2_idx]
+    
+    # Check if either endpoint is left
+    if "left" in p1_name.lower() or "left" in p2_name.lower():
+        return (255, 0, 0)  # Blue for left
+    # Check if either endpoint is right
+    elif "right" in p1_name.lower() or "right" in p2_name.lower():
+        return (0, 255, 0)  # Green for right
+    else:
+        return (128, 128, 128)  # Gray for neutral
+
+
 def get_3d_limits(pose_3d: VectorizedPoseData):
     """
     Computes fixed axis limits across all frames using vectorized operations 
@@ -38,7 +72,7 @@ def get_3d_limits(pose_3d: VectorizedPoseData):
 
 
 def draw_skeleton_2d(frame, pose_2d: VectorizedPoseData, frame_idx: int):
-    """Draws a 2D pose skeleton directly onto the cv2 frame."""
+    """Draws a 2D pose skeleton directly onto the cv2 frame with color-coding for left/right limbs."""
     if frame_idx >= pose_2d.num_frames:
         return frame
         
@@ -53,7 +87,7 @@ def draw_skeleton_2d(frame, pose_2d: VectorizedPoseData, frame_idx: int):
               f"{num_joints} keypoints vs {confidences.shape[0]} confidences")
         return frame
     
-    # 1. Draw Bones with bounds checking
+    # 1. Draw Bones with bounds checking and color coding
     for i in range(bones.shape[1]):
         p1_idx, p2_idx = bones[0, i], bones[1, i]
         
@@ -72,7 +106,9 @@ def draw_skeleton_2d(frame, pose_2d: VectorizedPoseData, frame_idx: int):
             h, w = frame.shape[:2]
             if (0 <= pt1[0] < w and 0 <= pt1[1] < h and 
                 0 <= pt2[0] < w and 0 <= pt2[1] < h):
-                cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
+                # Get color based on left/right limb
+                color = get_bone_color(pose_2d.skeleton, p1_idx, p2_idx)
+                cv2.line(frame, pt1, pt2, color, 2)
             
     # 2. Draw Joints with bounds checking
     for i, pt in enumerate(keypoints):
@@ -82,9 +118,44 @@ def draw_skeleton_2d(frame, pose_2d: VectorizedPoseData, frame_idx: int):
             x, y = int(pt[0]), int(pt[1])
             h, w = frame.shape[:2]
             if 0 <= x < w and 0 <= y < h:
-                cv2.circle(frame, (x, y), 3, (0, 0, 255), -1)
+                # Get color based on joint laterality
+                joint_name = pose_2d.skeleton.idx_to_name[i]
+                color = get_limb_color(joint_name)
+                cv2.circle(frame, (x, y), 3, color, -1)
             
     return frame
+
+
+def get_3d_bone_color(skeleton, p1_idx: int, p2_idx: int):
+    """
+    Determines bone color for 3D matplotlib visualization (RGB format).
+    Blue for left limbs, Green for right limbs, Gray for neutral.
+    """
+    p1_name = skeleton.idx_to_name[p1_idx]
+    p2_name = skeleton.idx_to_name[p2_idx]
+    
+    # Check if either endpoint is left
+    if "left" in p1_name.lower() or "left" in p2_name.lower():
+        return (0, 0, 1)  # Blue for left (RGB)
+    # Check if either endpoint is right
+    elif "right" in p1_name.lower() or "right" in p2_name.lower():
+        return (0, 1, 0)  # Green for right (RGB)
+    else:
+        return (0.5, 0.5, 0.5)  # Gray for neutral (RGB)
+
+
+def get_3d_joint_color(skeleton, joint_idx: int):
+    """
+    Determines joint color for 3D matplotlib visualization (RGB format).
+    Blue for left joints, Green for right joints, Red for neutral.
+    """
+    joint_name = skeleton.idx_to_name[joint_idx]
+    if "left" in joint_name.lower():
+        return (0, 0, 1)  # Blue for left (RGB)
+    elif "right" in joint_name.lower():
+        return (0, 1, 0)  # Green for right (RGB)
+    else:
+        return (1, 0, 0)  # Red for neutral/midline (RGB)
 
 
 def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6), fixed_limits=None):
@@ -106,7 +177,7 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
             plt.close(fig)
             return np.zeros((int(fig_size[0]*100), int(fig_size[1]*100), 3), dtype=np.uint8)
 
-        # 1. Draw Bones with bounds checking
+        # 1. Draw Bones with bounds checking and color coding
         for i in range(bones.shape[1]):
             p1_idx, p2_idx = bones[0, i], bones[1, i]
             
@@ -118,16 +189,17 @@ def draw_skeleton_3d(pose_3d: VectorizedPoseData, frame_idx: int, fig_size=(6, 6
                 
             if confidences[p1_idx] > 0.3 and confidences[p2_idx] > 0.3:
                 pt1, pt2 = keypoints[p1_idx], keypoints[p2_idx]
+                # Get color based on left/right limb
+                color = get_3d_bone_color(pose_3d.skeleton, p1_idx, p2_idx)
                 ax.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]], [pt1[2], pt2[2]], 
-                       'g-', linewidth=2)
+                       color=color, linewidth=2)
                 
-        # 2. Draw Joints with validation
-        valid_mask = confidences > 0.3
-        if valid_mask.sum() > 0:
-            valid_kps = keypoints[valid_mask]
-            if len(valid_kps) > 0:
-                ax.scatter(valid_kps[:, 0], valid_kps[:, 1], valid_kps[:, 2], 
-                          c='r', s=20)
+        # 2. Draw Joints with validation and color coding
+        for i in range(num_joints):
+            if confidences[i] > 0.3:
+                pt = keypoints[i]
+                color = get_3d_joint_color(pose_3d.skeleton, i)
+                ax.scatter([pt[0]], [pt[1]], [pt[2]], c=[color], s=40, alpha=0.8)
             
     # Set labels and limits
     ax.set_xlabel('X (m)')

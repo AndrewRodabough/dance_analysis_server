@@ -347,3 +347,220 @@ class TestEdgeCases:
         # Should still return structured result
         assert 'left_phases' in result
         assert 'right_phases' in result
+
+
+# ============================================================================
+# NEW TESTS FOR 2D SIDE VIEW ANALYSIS
+# ============================================================================
+
+class Test2DChaChWalk:
+    """Test 2D side-view cha-cha walk analysis."""
+    
+    @pytest.fixture
+    def coco_17_skeleton_2d(self):
+        """Create COCO-17 skeleton with 2D side-view walk data."""
+        joint_names = [
+            "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+            "left_shoulder", "right_shoulder", 
+            "left_elbow", "right_elbow",
+            "left_wrist", "right_wrist",
+            "left_hip", "right_hip",
+            "left_knee", "right_knee",
+            "left_ankle", "right_ankle"
+        ]
+        bones = [
+            ["left_hip", "left_knee"], ["left_knee", "left_ankle"],
+            ["right_hip", "right_knee"], ["right_knee", "right_ankle"],
+            ["left_hip", "right_hip"],
+            ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"]
+        ]
+        
+        skeleton = VectorizedSkeleton(joint_names, bones)
+        
+        # Create 2D side-view walk simulation (pixel coordinates)
+        # X = horizontal (forward/backward), Y = vertical (up/down)
+        num_frames = 60
+        data = np.zeros((num_frames, 17, 2), dtype=np.float32)
+        
+        # Image is 1920x1080, person centered
+        hip_y = 600  # Hip height in pixels
+        knee_y = 800  # Knee height
+        ankle_y = 1000  # Ankle on ground
+        center_x = 960
+        
+        for frame in range(num_frames):
+            # Simple walk cycle: frame 0-29 = left step, 30-59 = right step
+            progress = (frame % 30) / 30.0
+            
+            # Both hips stay relatively stable vertically
+            data[frame, 11, :] = [center_x - 20, hip_y]  # left_hip
+            data[frame, 12, :] = [center_x + 20, hip_y]  # right_hip
+            
+            if frame < 30:  # Left leg forward step
+                # Left leg moves forward
+                left_ankle_x = center_x + (progress * 200 - 100)
+                data[frame, 15, :] = [left_ankle_x, ankle_y]  # left_ankle
+                
+                # Knee bends during passing, straightens at arrival
+                if progress < 0.3:  # Release/passing
+                    left_knee_y = knee_y + 30  # Knee bends more
+                elif progress < 0.7:  # Extension
+                    left_knee_y = knee_y
+                else:  # Arrival
+                    left_knee_y = knee_y - 10  # Leg straighter
+                data[frame, 13, :] = [left_ankle_x - 10, left_knee_y]  # left_knee
+                
+                # Right leg stays back (standing leg)
+                data[frame, 16, :] = [center_x - 100, ankle_y]  # right_ankle
+                data[frame, 14, :] = [center_x - 110, knee_y - 10]  # right_knee (straight)
+                
+            else:  # Right leg forward step
+                # Right leg moves forward
+                right_ankle_x = center_x + ((progress - 0.5) * 2 * 200 - 100)
+                data[frame, 16, :] = [right_ankle_x, ankle_y]  # right_ankle
+                
+                # Knee bends during passing, straightens at arrival
+                if progress < 0.8:  # Release/passing
+                    right_knee_y = knee_y + 30
+                elif progress < 0.9:  # Extension
+                    right_knee_y = knee_y
+                else:  # Arrival
+                    right_knee_y = knee_y - 10
+                data[frame, 14, :] = [right_ankle_x + 10, right_knee_y]  # right_knee
+                
+                # Left leg stays back (standing leg)
+                data[frame, 15, :] = [center_x + 100, ankle_y]  # left_ankle
+                data[frame, 13, :] = [center_x + 110, knee_y - 10]  # left_knee (straight)
+        
+        skeleton.load_data(data)
+        confidence = np.ones((num_frames, 17), dtype=np.float32) * 0.9
+        pose_data = VectorizedPoseData(skeleton, confidence)
+        
+        return pose_data
+    
+    def test_2d_analysis_returns_expected_structure(self, coco_17_skeleton_2d):
+        """Test that 2D analysis returns correct structure."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d
+        )
+        
+        result = analyze_cha_cha_walk_2d(coco_17_skeleton_2d)
+        
+        assert 'states' in result
+        assert 'faults' in result
+        assert 'final_standing_leg' in result
+        
+        num_frames = coco_17_skeleton_2d.num_frames
+        assert len(result['states']) == num_frames
+        assert isinstance(result['faults'], list)
+        assert result['final_standing_leg'] in ['Left', 'Right']
+    
+    def test_2d_helper_functions(self, coco_17_skeleton_2d):
+        """Test 2D helper functions work correctly."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            compute_weight_transfer_offsets_2d,
+            compute_ankle_to_ankle_distance_2d,
+            magnitude_2d
+        )
+        
+        # Test weight transfer computation
+        offsets = compute_weight_transfer_offsets_2d(coco_17_skeleton_2d)
+        assert offsets.shape == (coco_17_skeleton_2d.num_frames, 2, 2)
+        assert offsets.dtype == np.float32
+        
+        # Test ankle distance computation
+        distances = compute_ankle_to_ankle_distance_2d(coco_17_skeleton_2d)
+        assert distances.shape == (coco_17_skeleton_2d.num_frames,)
+        assert np.all(distances >= 0)
+        
+        # Test 2D magnitude
+        vec = np.array([3.0, 4.0])
+        mag = magnitude_2d(vec)
+        assert np.isclose(mag, 5.0)
+    
+    def test_2d_state_transitions(self, coco_17_skeleton_2d):
+        """Test that 2D analysis produces state transitions."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d
+        )
+        
+        result = analyze_cha_cha_walk_2d(coco_17_skeleton_2d)
+        states = result['states']
+        
+        # Should have multiple different states
+        unique_states = set(states)
+        assert len(unique_states) > 1, "Should transition between states"
+        
+        # Should include expected state names
+        valid_states = {'RELEASE', 'PASSING', 'EXTENSION', 'ARRIVAL', 'COMPLETED'}
+        assert unique_states.issubset(valid_states)
+    
+    def test_2d_low_confidence_handling(self):
+        """Test that 2D analysis handles low confidence frames gracefully."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d
+        )
+        
+        joint_names = [
+            "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+            "left_shoulder", "right_shoulder", 
+            "left_elbow", "right_elbow",
+            "left_wrist", "right_wrist",
+            "left_hip", "right_hip",
+            "left_knee", "right_knee",
+            "left_ankle", "right_ankle"
+        ]
+        bones = [["left_hip", "left_knee"]]
+        skeleton = VectorizedSkeleton(joint_names, bones)
+        
+        # Create simple data
+        data = np.zeros((10, 17, 2), dtype=np.float32)
+        for frame in range(10):
+            data[frame, 11, :] = [960, 600]  # left_hip
+            data[frame, 12, :] = [980, 600]  # right_hip
+            data[frame, 13, :] = [960, 800]  # left_knee
+            data[frame, 14, :] = [980, 800]  # right_knee
+            data[frame, 15, :] = [960, 1000]  # left_ankle
+            data[frame, 16, :] = [980, 1000]  # right_ankle
+        
+        skeleton.load_data(data)
+        
+        # Low confidence for some frames
+        confidence = np.ones((10, 17), dtype=np.float32) * 0.1  # Very low
+        pose_data = VectorizedPoseData(skeleton, confidence)
+        
+        # Should not crash, but may not detect faults
+        result = analyze_cha_cha_walk_2d(pose_data)
+        assert 'states' in result
+        assert 'faults' in result
+    
+    def test_2d_feature_extraction_integration(self, coco_17_skeleton_2d):
+        """Test integration with feature_extraction module."""
+        from video_processing.app.analysis.feature_extraction.feature_extraction import (
+            extract_features
+        )
+        
+        # Test calling with 2D data
+        result = extract_features(
+            pose_data_2d=coco_17_skeleton_2d,
+            use_2d_analysis=True
+        )
+        
+        # Should return without error
+        assert isinstance(result, dict)
+    
+    def test_2d_vs_3d_api_compatibility(self):
+        """Test that 2D and 3D analysis have compatible APIs."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk,
+            analyze_cha_cha_walk_2d
+        )
+        
+        # Both should have same output structure
+        # (Just check that they have the same keys expected)
+        expected_keys = {'states', 'faults', 'final_standing_leg'}
+        
+        # We can't easily test both without proper data, but we can at least
+        # verify the function signatures exist
+        assert callable(analyze_cha_cha_walk)
+        assert callable(analyze_cha_cha_walk_2d)

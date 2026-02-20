@@ -46,10 +46,10 @@ def run_feature_extraction_pipeline(
         logger.debug(f"Received 2D pose data: {pose_data_2d.num_frames} frames, {pose_data_2d.num_joints} joints")
         logger.debug(f"Received 3D pose data: {pose_data_3d.num_frames} frames, {pose_data_3d.num_joints} joints")
         
-        # Step 1: Extract Features from 3D pose data
-        logger.info("Extracting features from 3D pose data")
-        features = extract_features(pose_data_3d)
-        logger.info(f"✓ Features extracted from {pose_data_3d.num_frames} frames")
+        # Step 1: Extract Features from 2D pose data (side-view analysis)
+        logger.info("Extracting features from 2D pose data (side-view)")
+        features = extract_features(pose_data_2d=pose_data_2d, use_2d_analysis=True)
+        logger.info(f"✓ Features extracted from {pose_data_2d.num_frames} frames")
                 
         logger.info(f"[STAGE 2] ✓ Feature extraction complete")
         return features
