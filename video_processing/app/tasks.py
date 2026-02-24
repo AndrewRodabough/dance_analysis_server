@@ -81,6 +81,8 @@ def process_job(
         results = run_analysis_pipeline(
             local_video_path=local_video_path,
             visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4",
+            keypoints_2d_output_path=Path("/workspace/outputs") / job_id / "keypoints_2d.json",
+            keypoints_3d_output_path=Path("/workspace/outputs") / job_id / "keypoints_3d.json",
             update_status=update_status,
         )
 

@@ -22,6 +22,60 @@ export USE_MOCK_ANALYSIS=true
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+## Offline Keypoint Analysis
+
+For analyzing pre-computed 2D and 3D keypoints without GPU dependencies, use the lightweight offline analysis workflow.
+
+### Quick Setup
+
+```bash
+cd video_processing
+
+# Setup lightweight Python virtual environment
+bash setup_venv.sh
+
+# Activate the environment
+source .venv/bin/activate
+```
+
+### Running Analysis
+
+```bash
+# Basic usage with keypoints
+python analyze_keypoints.py \
+  --keypoints-2d path/to/keypoints_2d.json \
+  --keypoints-3d path/to/keypoints_3d.json \
+  --video input_video.mp4
+
+# Or using the convenience wrapper
+bash run_offline.sh \
+  --keypoints-2d path/to/keypoints_2d.json \
+  --keypoints-3d path/to/keypoints_3d.json \
+  --video input_video.mp4 \
+  --output-dir ./results
+```
+
+### Use Cases
+
+- **Re-analyze previously generated keypoints** - Skip expensive pose estimation
+- **Local analysis** - No GPU or Docker required
+- **Batch processing** - Analyze multiple keypoint files with minimal overhead
+- **Integration workflows** - Use keypoints from external pose estimation systems
+
+### Generated Output
+
+Analysis generates files in the output directory:
+- `video_visualization.mp4` - Side-by-side 2D/3D visualization
+- `keypoints_2d.json` - Saved 2D keypoints (copy from input or regenerated)
+- `keypoints_3d.json` - Saved 3D keypoints (copy from input or regenerated)
+- Analysis reports and metrics
+
+### Minimal Dependencies
+
+The offline workflow uses lightweight dependencies (no GPU/ML libraries):
+- NumPy, OpenCV, Matplotlib, SciPy
+- Total size: ~500MB (vs 5GB+ for full GPU setup)
+
 ### Production Mode (Docker - GPU Required)
 
 For full pipeline with actual pose estimation:

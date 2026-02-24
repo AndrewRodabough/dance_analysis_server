@@ -9,14 +9,15 @@ import numpy as np
 from shared.skeletons.skeleton_registry import SkeletonRegistry
 from shared.skeletons.skeleton import VectorizedSkeleton
 from shared.skeletons.pose_data import VectorizedPoseData
-from ..pose_estimation.pose_estimation_motionbert import pose_estimation
 
 logger = logging.getLogger(__name__)
 
 # Define skeleton config paths
+# Try multiple locations to support both Docker and local offline environments
 _DEFAULT_CONFIG_DIRS = [
-    Path("/workspace/shared/configs/skeletons"),
-    Path(__file__).resolve().parents[4] / "configs" / "skeletons",
+    Path("/workspace/shared/configs/skeletons"),  # Docker container path
+    Path(__file__).resolve().parents[4] / "shared" / "configs" / "skeletons",  # Local: project_root/shared/configs/skeletons
+    Path(__file__).resolve().parents[5] / "shared" / "configs" / "skeletons",  # Alternative local path
 ]
 SKELETON_CONFIGS_DIR = next((p for p in _DEFAULT_CONFIG_DIRS if p.exists()), _DEFAULT_CONFIG_DIRS[0])
 
@@ -141,6 +142,10 @@ def run_pose_estimation_pipeline(
         elif local_video_path and local_video_path.exists():
             # Generate keypoints from video
             logger.info(f"Generating keypoints from video: {local_video_path}")
+            
+            # Lazy import - only needed when processing video (requires GPU dependencies)
+            from ..pose_estimation.pose_estimation_motionbert import pose_estimation
+            
             keypoints_2d_raw, keypoints_3d_raw, _ = pose_estimation(local_video_path, apply_smoothing=True)
             
             # Load skeleton configurations (COCO format for 2D, H36M for 3D)
