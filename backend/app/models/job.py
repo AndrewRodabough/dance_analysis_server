@@ -23,7 +23,12 @@ class Job(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     # Job details
-    status = Column(SQLEnum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True)
+    status = Column(
+        SQLEnum(JobStatus, values_callable=lambda enum: [e.value for e in enum], name="jobstatus"),
+        default=JobStatus.PENDING,
+        nullable=False,
+        index=True
+    )
     filename = Column(String(255), nullable=False)
 
     # Storage paths

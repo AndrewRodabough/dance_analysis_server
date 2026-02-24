@@ -1,0 +1,39 @@
+{
+    "name": "coco_w",
+    "description": "COCO-WholeBody format (133 points) output by RTMW.",
+    "joints": [
+        "Nose", "L_Eye", "R_Eye", "L_Ear", "R_Ear", 
+        "L_Shoulder", "R_Shoulder", "L_Elbow", "R_Elbow", "L_Wrist", "R_Wrist", 
+        "L_Hip", "R_Hip", "L_Knee", "R_Knee", "L_Ankle", "R_Ankle",
+        "L_BigToe", "L_SmallToe", "L_Heel", "R_BigToe", "R_SmallToe", "R_Heel",
+        "Face_0", "Face_1", "Face_2", "Face_3", "Face_4", "Face_5", "Face_6", "Face_7", "Face_8", "Face_9", "Face_10", "Face_11", "Face_12", "Face_13", "Face_14", "Face_15", "Face_16",
+        "Face_17", "Face_18", "Face_19", "Face_20", "Face_21", "Face_22", "Face_23", "Face_24", "Face_25", "Face_26",
+        "Face_27", "Face_28", "Face_29", "Face_30", "Face_31", "Face_32", "Face_33", "Face_34", "Face_35",
+        "Face_36", "Face_37", "Face_38", "Face_39", "Face_40", "Face_41", "Face_42", "Face_43", "Face_44", "Face_45", "Face_46", "Face_47",
+        "Face_48", "Face_49", "Face_50", "Face_51", "Face_52", "Face_53", "Face_54", "Face_55", "Face_56", "Face_57", "Face_58", "Face_59",
+        "Face_60", "Face_61", "Face_62", "Face_63", "Face_64", "Face_65", "Face_66", "Face_67",
+        "L_Wrist_Base", "L_Thumb_1", "L_Thumb_2", "L_Thumb_3", "L_Thumb_4", "L_Index_1", "L_Index_2", "L_Index_3", "L_Index_4", "L_Mid_1", "L_Mid_2", "L_Mid_3", "L_Mid_4", "L_Ring_1", "L_Ring_2", "L_Ring_3", "L_Ring_4", "L_Pinky_1", "L_Pinky_2", "L_Pinky_3", "L_Pinky_4",
+        "R_Wrist_Base", "R_Thumb_1", "R_Thumb_2", "R_Thumb_3", "R_Thumb_4", "R_Index_1", "R_Index_2", "R_Index_3", "R_Index_4", "R_Mid_1", "R_Mid_2", "R_Mid_3", "R_Mid_4", "R_Ring_1", "R_Ring_2", "R_Ring_3", "R_Ring_4", "R_Pinky_1", "R_Pinky_2", "R_Pinky_3", "R_Pinky_4"
+    ],
+    "bones": [
+        ["Nose", "L_Eye"], ["L_Eye", "L_Ear"],
+        ["Nose", "R_Eye"], ["R_Eye", "R_Ear"],
+        ["L_Shoulder", "R_Shoulder"], ["L_Shoulder", "L_Hip"], ["R_Shoulder", "R_Hip"], ["L_Hip", "R_Hip"],
+        ["L_Shoulder", "L_Elbow"], ["L_Elbow", "L_Wrist"],
+        ["R_Shoulder", "R_Elbow"], ["R_Elbow", "R_Wrist"],
+        ["L_Hip", "L_Knee"], ["L_Knee", "L_Ankle"],
+        ["R_Hip", "R_Knee"], ["R_Knee", "R_Ankle"],
+        ["L_Ankle", "L_Heel"], ["L_Ankle", "L_BigToe"], ["L_Ankle", "L_SmallToe"],
+        ["R_Ankle", "R_Heel"], ["R_Ankle", "R_BigToe"], ["R_Ankle", "R_SmallToe"],
+        ["L_Wrist", "L_Thumb_1"], ["L_Thumb_1", "L_Thumb_2"], ["L_Thumb_2", "L_Thumb_3"], ["L_Thumb_3", "L_Thumb_4"],
+        ["L_Wrist", "L_Index_1"], ["L_Index_1", "L_Index_2"], ["L_Index_2", "L_Index_3"], ["L_Index_3", "L_Index_4"],
+        ["L_Wrist", "L_Mid_1"], ["L_Mid_1", "L_Mid_2"], ["L_Mid_2", "L_Mid_3"], ["L_Mid_3", "L_Mid_4"],
+        ["L_Wrist", "L_Ring_1"], ["L_Ring_1", "L_Ring_2"], ["L_Ring_2", "L_Ring_3"], ["L_Ring_3", "L_Ring_4"],
+        ["L_Wrist", "L_Pinky_1"], ["L_Pinky_1", "L_Pinky_2"], ["L_Pinky_2", "L_Pinky_3"], ["L_Pinky_3", "L_Pinky_4"],
+        ["R_Wrist", "R_Thumb_1"], ["R_Thumb_1", "R_Thumb_2"], ["R_Thumb_2", "R_Thumb_3"], ["R_Thumb_3", "R_Thumb_4"],
+        ["R_Wrist", "R_Index_1"], ["R_Index_1", "R_Index_2"], ["R_Index_2", "R_Index_3"], ["R_Index_3", "R_Index_4"],
+        ["R_Wrist", "R_Mid_1"], ["R_Mid_1", "R_Mid_2"], ["R_Mid_2", "R_Mid_3"], ["R_Mid_3", "R_Mid_4"],
+        ["R_Wrist", "R_Ring_1"], ["R_Ring_1", "R_Ring_2"], ["R_Ring_2", "R_Ring_3"], ["R_Ring_3", "R_Ring_4"],
+        ["R_Wrist", "R_Pinky_1"], ["R_Pinky_1", "R_Pinky_2"], ["R_Pinky_2", "R_Pinky_3"], ["R_Pinky_3", "R_Pinky_4"]
+    ]
+}

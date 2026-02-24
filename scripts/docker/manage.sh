@@ -15,8 +15,15 @@ fi
 case "$1" in
     start)
         echo "🚀 Starting services with profile: $PROFILE"
+        echo "   Core: backend, postgres, minio, video-worker-$PROFILE"
+        echo "   Logging: loki, alloy, grafana"
         docker compose $COMPOSE_PROFILE up -d
         echo "✅ Services started"
+        echo ""
+        echo "📊 Access URLs:"
+        echo "   Backend API: http://localhost:8000"
+        echo "   MinIO Console: http://localhost:9001 (admin/admin)"
+        echo "   Grafana Logs: http://localhost:3000 (admin/admin)"
         ;;
     stop)
         echo "🛑 Stopping services..."
@@ -45,6 +52,11 @@ case "$1" in
         docker compose $COMPOSE_PROFILE build
         echo "✅ Build complete"
         ;;
+    migrate)
+        echo "🧱 Running database migrations..."
+        docker compose $COMPOSE_PROFILE exec backend alembic upgrade head
+        echo "✅ Migrations applied"
+        ;;
     shell-backend)
         echo "📦 Opening shell in backend container..."
         docker compose exec backend bash
@@ -60,12 +72,16 @@ case "$1" in
         echo "   Username: minioadmin"
         echo "   Password: minioadmin"
         ;;
-    rq-dashboard)
-        echo "📊 RQ Dashboard:"
-        echo "   URL: http://localhost:9181"
-        ;;
-    redis-cli)
-        docker compose exec redis redis-cli
+    grafana)
+        echo "📊 Grafana Dashboards:"
+        echo "   URL: http://localhost:3000"
+        echo "   Username: admin"
+        echo "   Password: admin"
+        echo ""
+        echo "Available dashboards:"
+        echo "   - Video Processing Jobs"
+        echo "   - Worker Performance"
+        echo "   - System Metrics"
         ;;
     test-upload)
         if [ -z "$2" ]; then
@@ -88,25 +104,25 @@ case "$1" in
         echo "  mac                Use Mac Apple Silicon worker"
         echo ""
         echo "Commands:"
-        echo "  start              Start all services"
+        echo "  start              Start all services (backend, workers, database, logging)"
         echo "  stop               Stop all services"
         echo "  restart            Restart all services"
-        echo "  logs [service]     View service logs"
+        echo "  logs [service]     View service logs (e.g., backend, video-worker-cpu)"
         echo "  status             Show service status"
         echo "  clean              Stop and remove all containers/volumes"
         echo "  build              Build Docker images"
+        echo "  migrate            Apply database migrations"
         echo ""
         echo "Containers:"
         echo "  shell-backend      Open shell in backend container"
         echo "  shell-worker       Open shell in worker container"
         echo ""
         echo "Dashboards:"
-        echo "  minio-console      Show MinIO console URL"
-        echo "  rq-dashboard       Show RQ dashboard URL"
+        echo "  minio-console      Show MinIO console info"
+        echo "  grafana            Show Grafana dashboard info"
         echo ""
-        echo "Tools:"
-        echo "  redis-cli          Open Redis CLI"
-        echo "  test-upload        Upload a test video"
+        echo "Development:"
+        echo "  test-upload        Upload a test video for processing"
         echo ""
         echo "Examples:"
         echo "  $0 start                           # Start with CPU worker"
@@ -114,6 +130,8 @@ case "$1" in
         echo "  $0 amd logs video-worker-amd       # View AMD worker logs"
         echo "  $0 mac test-upload video.mp4       # Upload with Mac worker"
         echo "  $0 nvidia shell-worker             # Shell into NVIDIA worker"
+        echo "  $0 grafana                         # Show Grafana dashboard URLs"
+        echo "  $0 migrate                         # Apply database migrations"
         echo ""
         ;;
 esac

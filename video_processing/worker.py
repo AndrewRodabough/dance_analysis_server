@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 from database import get_db_session, get_next_pending_job, update_job_status
-from tasks import process_job
+from app.tasks import process_job
 
 # Configure logging
 logging.basicConfig(
@@ -54,8 +54,6 @@ def run_worker():
                         db,
                         job_id,
                         "completed",
-                        result_path=result.get('result_path'),
-                        data_path=result.get('data_path')
                     )
                     logger.info(f"Job {job_id} completed successfully")
 
