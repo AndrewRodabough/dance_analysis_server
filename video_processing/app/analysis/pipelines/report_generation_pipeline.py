@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 def run_report_generation_pipeline(
-    job_id: str,
     pose_2d: VectorizedPoseData, 
     pose_3d: VectorizedPoseData,
     local_video_path: Optional[Path] = None,
@@ -23,7 +22,6 @@ def run_report_generation_pipeline(
     Generates visualization videos, feedback reports, and uploads all results to S3.
     
     Args:
-        job_id: Unique job identifier
         s3_bucket: S3 bucket name
         s3_client: Boto3 S3 client
         features: Features dictionary from Stage 2
@@ -40,7 +38,7 @@ def run_report_generation_pipeline(
             - visualization_path: Path to saved visualization video (if available)
             - feedback_path: Path to saved feedback.txt (if available)
     """
-    logger.info(f"[STAGE 3] Report Generation Pipeline: Creating reports for job {job_id}")
+    logger.info(f"[STAGE 3] Report Generation Pipeline: Creating reports")
     
     try:
         # Step 1: Generate Visualization Video

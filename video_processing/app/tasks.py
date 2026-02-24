@@ -1,10 +1,9 @@
-"""RQ worker tasks for video processing - GPU stage + analysis."""
+"""Video processing tasks - GPU stage + analysis."""
 
 from pathlib import Path
 import json
-from typing import Dict, Optional
+from typing import Dict, Callable, Optional
 import logging
-from rq import get_current_job
 import boto3
 from botocore.client import Config
 import os
@@ -43,47 +42,64 @@ TEMP_DIR = Path("/workspace/temp")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def generate_feedback(
+def process_job(
     job_id: str,
-    s3_video_key: str,
-    local_video_path: Path
+    s3_key: str,
+    filename: str,
+    options: Dict = None,
+    status_callback: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
     """
-    Generate visualization and feedback from video.
-    
-    Orchestrates the complete analysis pipeline through three stages:
-    1. Pose Estimation - Load keypoints and create pose objects
-    2. Feature Extraction - Analyze pose and calculate metrics
-    3. Report Generation - Create reports and upload results
+    Process a video analysis job (called by PostgreSQL worker).
 
     Args:
         job_id: Unique job identifier
-        s3_video_key: S3 key where original video is stored
-        local_video_path: Path where video should be downloaded
+        s3_key: S3 key where video is stored
+        filename: Original filename
+        options: Processing options
+        status_callback: Optional callback(status, progress) for status updates
 
     Returns:
-        Dict with final results and S3 paths
+        Dict with result paths and metadata
     """
-    
-    # Normalize to Path in case a string path is passed in from RQ.
-    local_video_path = Path(local_video_path)
-    # Create parent directory if it doesn't exist
-    local_video_path.parent.mkdir(parents=True, exist_ok=True)
+    def update_status(status: str, progress: int):
+        if status_callback:
+            status_callback(status, progress)
+        logger.info(f"[{job_id}] {status} ({progress}%)")
 
-    job = get_current_job()
-    job.meta['status'] = 'Downloading video from S3'
-    job.meta['progress'] = 10
-    job.save_meta()
+    local_video_path = TEMP_DIR / f"{job_id}_input.mp4"
 
-    logger.info(f"Downloading {s3_video_key} to {local_video_path}")
-    s3_client.download_file(S3_BUCKET, s3_video_key, str(local_video_path))
-    logger.info(f"Download complete: {local_video_path.stat().st_size} bytes")
+    try:
+        logger.info(f"Processing job {job_id}: {s3_key}")
 
-    return run_analysis_pipeline(
-        job_id=job_id,
-        s3_bucket=S3_BUCKET,
-        s3_client=s3_client,
-        local_video_path=local_video_path,
-        redis_connection=job.connection,
-        visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4"
-    )
+        # Download video from S3
+        update_status('Downloading video from S3', 10)
+        s3_client.download_file(S3_BUCKET, s3_key, str(local_video_path))
+
+        # Run analysis pipeline
+        update_status('Running analysis pipeline', 20)
+        results = run_analysis_pipeline(
+            local_video_path=local_video_path,
+            visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4",
+            update_status=update_status,
+        )
+
+        # Upload results to S3 and DB
+        update_status('Uploading Results', 95)
+        # TODO: Implement upload logic
+
+        # Cleanup
+        if local_video_path.exists():
+            local_video_path.unlink()
+
+        update_status('Complete', 100)
+        
+        return {
+            'status': 'success',
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing job {job_id}: {e}", exc_info=True)
+        if local_video_path.exists():
+            local_video_path.unlink()
+        raise

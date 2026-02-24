@@ -11,19 +11,23 @@ x-common-env: &common-env
 # Device-specific environment anchors
 x-cpu-env: &cpu-env
   <<: *common-env
+  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
 
 x-nvidia-env: &nvidia-env
   <<: *common-env
+  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
   CUDA_VISIBLE_DEVICES: "0"
   DEVICE_TYPE: cuda
 
 x-amd-env: &amd-env
   <<: *common-env
+  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
   HIP_VISIBLE_DEVICES: "0"
   DEVICE_TYPE: rocm
 
 x-mac-env: &mac-env
   <<: *common-env
+  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
   DEVICE_TYPE: mps
 
 # Common worker configuration anchor
@@ -37,14 +41,17 @@ x-video-worker-common: &video-worker-common
     - video-temp:/workspace/temp
     - ./outputs:/workspace/outputs
   depends_on:
-    redis:
+    postgres:
       condition: service_healthy
     minio:
       condition: service_healthy
   networks:
     - dance-network
   restart: unless-stopped
-  command: ["sh", "-c", "watchfiles --filter python --ignore-paths /workspace/temp 'rq worker --url redis://redis:6379/0 --path /workspace analysis'"]
+  environment:
+    ENABLE_HOT_UPDATES: "true"
+  command: ["sh", "-c", "if [ \"$ENABLE_HOT_UPDATES\" = \"true\" ]; then watchfiles --filter python --ignore-paths /workspace/temp 'python3 worker.py'; else python3 worker.py; fi"]
+
 
 services:
   backend:
@@ -55,40 +62,27 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin
       - S3_BUCKET=dance-videos
-      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-false}
       - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=postgresql://danceuser:dancepass@postgres:5432/dancedb
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
     volumes:
       - ./backend:/app:ro
     depends_on:
-      redis:
-        condition: service_healthy
       minio:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - dance-network
     restart: unless-stopped
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-  redis:
-    image: redis:7-alpine
-    container_name: dance-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - dance-network
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   minio:
     image: minio/minio:latest
@@ -125,6 +119,26 @@ services:
       mc anonymous set download myminio/dance-videos;
       exit 0;
       "
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: dance-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=danceuser
+      - POSTGRES_PASSWORD=dancepass
+      - POSTGRES_DB=dancedb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - dance-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U danceuser -d dancedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   video-worker-cpu:
     <<: *video-worker-common
@@ -173,24 +187,61 @@ services:
     profiles:
       - mac
 
-  rq-dashboard:
-    image: eoranged/rq-dashboard
-    container_name: dance-rq-dashboard
+  # Logging infrastructure
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: dance-loki
     ports:
-      - "9181:9181"
-    environment:
-      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
     networks:
       - dance-network
     restart: unless-stopped
-    profiles:
-      - nvidia
-      - amd
-      - mac
-      - amd
-      - mac
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: dance-alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - dance-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: dance-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SERVER_ROOT_URL=https://logs.valoren.click
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - dance-network
+    restart: unless-stopped
 
 volumes:
   redis-data:
@@ -198,6 +249,11 @@ volumes:
   minio-data:
     driver: local
   video-temp:
+    driver: local
+  loki-data:
+    driver: local
+  grafana-data:
+  postgres-data:
     driver: local
 
 networks:

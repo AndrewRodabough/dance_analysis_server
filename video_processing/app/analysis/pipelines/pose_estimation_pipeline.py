@@ -74,7 +74,6 @@ def _load_keypoints_from_json_file(keypoints_path: Path) -> np.ndarray:
 
 
 def run_pose_estimation_pipeline(
-    job_id: str,
     local_keypoints_2d_path: Optional[Path] = None,
     local_keypoints_3d_path: Optional[Path] = None,
     local_video_path: Optional[Path] = None,
@@ -89,7 +88,6 @@ def run_pose_estimation_pipeline(
     For video: Generates keypoints and wraps in coco_w (2D) and human_17 (3D) skeletons.
     
     Args:
-        job_id: Unique job identifier
         local_keypoints_2d_path: Path to 2D keypoints JSON file
         local_keypoints_3d_path: Path to 3D keypoints JSON file
         local_video_path: Path to video file
@@ -99,7 +97,7 @@ def run_pose_estimation_pipeline(
             - pose_data_2d: VectorizedPoseData object for 2D pose
             - pose_data_3d: VectorizedPoseData object for 3D pose
     """
-    logger.info(f"[STAGE 1] Pose Estimation Pipeline: Loading keypoints for job {job_id}")
+    logger.info(f"[STAGE 1] Pose Estimation Pipeline: Loading keypoints")
     
     try:
         if local_keypoints_2d_path and local_keypoints_2d_path.exists() \
