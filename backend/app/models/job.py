@@ -1,10 +1,12 @@
 """Job database model for tracking video analysis jobs."""
 
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Enum as SQLEnum
+from enum import Enum as PyEnum
+
+from app.database import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from enum import Enum as PyEnum
-from app.database import Base
 
 
 class JobStatus(str, PyEnum):
@@ -34,10 +36,14 @@ class Job(Base):
     # Error tracking
     error_message = Column(Text)
 
+    # Retry Information
+    attempts = Column(Integer)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
+
 
     # Relationship to User
     user = relationship("User", backref="jobs")

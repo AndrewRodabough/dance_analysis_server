@@ -2,22 +2,17 @@
 
 from pathlib import Path
 import json
+import time
 from typing import Dict, Callable, Optional
-import logging
 import boto3
 from botocore.client import Config
 import os
 import tempfile
 import numpy as np
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S'
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from logging_config import get_logger, log_job_status, log_storage_operation
+
+logger = get_logger(__name__)
 
 # S3 Configuration
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio:9000")
@@ -68,16 +63,27 @@ def process_job(
     local_video_path = TEMP_DIR / f"{job_id}_input.mp4"
 
     try:
-        logger.info(f"Processing job {job_id}: {s3_key}")
+        log_job_status(job_id, status="processing", stage="downloading", progress=10)
 
         # Step 1: Download video from S3
         update_status('Downloading video from S3', 10)
-        logger.info(f"Downloading {s3_key} to {local_video_path}")
+        dl_start = time.perf_counter()
         s3_client.download_file(S3_BUCKET, s3_key, str(local_video_path))
-        logger.info(f"Download complete: {local_video_path.stat().st_size} bytes")
+        dl_duration = (time.perf_counter() - dl_start) * 1000
+        file_size = local_video_path.stat().st_size
+        log_storage_operation(
+            operation="download",
+            provider="minio",
+            bucket=S3_BUCKET,
+            key=s3_key,
+            job_id=job_id,
+            bytes_transferred=file_size,
+            duration_ms=dl_duration,
+        )
 
         # Step 2: Run pose estimation
         update_status('Extracting pose data', 30)
+        log_job_status(job_id, status="processing", stage="pose-estimation", progress=30)
         options = options or {}
         apply_smoothing = options.get('apply_smoothing', True)
 
@@ -99,7 +105,7 @@ def process_job(
                 apply_smoothing=apply_smoothing
             )
 
-        logger.info(f"Pose estimation complete: {len(keypoints_2d)} frames")
+        log_job_status(job_id, status="processing", stage="pose-estimation-complete", progress=55, num_frames=len(keypoints_2d))
 
         # Step 3: Save keypoints locally
         update_status('Saving keypoints', 60)
@@ -114,6 +120,7 @@ def process_job(
 
         # Step 4: Generate feedback and upload results
         update_status('Generating feedback', 80)
+        log_job_status(job_id, status="processing", stage="feedback", progress=80)
         analysis_result = generate_feedback(
             job_id=job_id,
             s3_video_key=s3_key,
@@ -124,7 +131,6 @@ def process_job(
         )
 
         # Step 5: Cleanup
-        logger.info(f"Cleaning up temporary files for job {job_id}")
         local_video_path.unlink(missing_ok=True)
         json_2d_path.unlink(missing_ok=True)
         json_3d_path.unlink(missing_ok=True)
@@ -140,7 +146,7 @@ def process_job(
         }
 
     except Exception as e:
-        logger.error(f"Error processing job {job_id}: {e}", exc_info=True)
+        log_job_status(job_id, status="failed", error=str(e))
         if local_video_path.exists():
             local_video_path.unlink()
         raise
@@ -424,14 +430,31 @@ def generate_feedback(
             def safe_upload(local_path, s3_key, description):
                 """Upload file to S3, ignoring urllib3 header parsing errors."""
                 try:
+                    upload_start = time.perf_counter()
                     s3_client.upload_file(str(local_path), S3_BUCKET, s3_key)
-                    logger.info(f"Uploaded {description}")
+                    upload_duration = (time.perf_counter() - upload_start) * 1000
+                    log_storage_operation(
+                        operation="upload",
+                        provider="minio",
+                        bucket=S3_BUCKET,
+                        key=s3_key,
+                        job_id=job_id,
+                        bytes_transferred=Path(local_path).stat().st_size,
+                        duration_ms=upload_duration,
+                    )
                 except Exception as e:
                     # Check if it's the urllib3 header parsing issue (file actually uploaded)
                     if "HeaderParsingError" in str(type(e).__name__) or "HeaderParsingError" in str(e):
                         logger.warning(f"Header parsing warning for {description} (likely uploaded successfully)")
                     else:
-                        logger.error(f"Failed to upload {description}: {e}")
+                        log_storage_operation(
+                            operation="upload",
+                            provider="minio",
+                            bucket=S3_BUCKET,
+                            key=s3_key,
+                            job_id=job_id,
+                            error=str(e),
+                        )
                         raise
 
             safe_upload(json_2d_path, f"results/{job_id}/keypoints_2d.json", "keypoints_2d.json")

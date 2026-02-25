@@ -1,32 +1,38 @@
 # Common environment variables
 x-common-env: &common-env
-  PYTHONUNBUFFERED: "1"
-  REDIS_URL: redis://redis:6379/0
-  S3_ENDPOINT: http://minio:9000
-  S3_ACCESS_KEY: minioadmin
-  S3_SECRET_KEY: minioadmin
-  S3_BUCKET: dance-videos
+  PYTHONUNBUFFERED: ${PYTHONUNBUFFERED}
+  REDIS_URL: ${REDIS_URL}
+  S3_ENDPOINT: ${S3_ENDPOINT}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY}
+  S3_BUCKET: ${S3_BUCKET}
+
+  R2_ENDPOINT: ${R2_ENDPOINT}
+  R2_BUCKET: ${R2_BUCKET}
+  R2_ACCESS_KEY: ${R2_ACCESS_KEY}
+  R2_SECRET_KEY: ${R2_SECRET_KEY}
 
 # Device-specific environment anchors
 x-cpu-env: &cpu-env
   <<: *common-env
-  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
+  DATABASE_URL: ${DATABASE_URL}
+  DEVICE_TYPE: cpu
 
 x-nvidia-env: &nvidia-env
   <<: *common-env
-  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
-  CUDA_VISIBLE_DEVICES: "0"
+  DATABASE_URL: ${DATABASE_URL}
+  CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}
   DEVICE_TYPE: cuda
 
 x-amd-env: &amd-env
   <<: *common-env
-  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
-  HIP_VISIBLE_DEVICES: "0"
+  DATABASE_URL: ${DATABASE_URL}
+  HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES}
   DEVICE_TYPE: rocm
 
 x-mac-env: &mac-env
   <<: *common-env
-  DATABASE_URL: postgresql://danceuser:dancepass@postgres:5432/dancedb
+  DATABASE_URL: ${DATABASE_URL}
   DEVICE_TYPE: mps
 
 # Common worker configuration anchor
@@ -49,6 +55,8 @@ x-video-worker-common: &video-worker-common
 
 services:
   backend:
+    env_file:
+      - .env
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -56,19 +64,19 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - S3_ENDPOINT=http://minio:9000
-      - S3_PUBLIC_ENDPOINT=https://storage.valoren.click
-      - S3_ACCESS_KEY=minioadmin
-      - S3_SECRET_KEY=minioadmin
-      - S3_BUCKET=dance-videos
-      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-false}
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=postgresql://danceuser:dancepass@postgres:5432/dancedb
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
-      - JWT_ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REDIS_URL=${REDIS_URL}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
     volumes:
       - ./backend:/app:ro
     depends_on:
@@ -92,6 +100,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    env_file:
+      - .env
     container_name: dance-redis
     ports:
       - "6379:6379"
@@ -108,15 +118,15 @@ services:
 
   minio:
     image: minio/minio:latest
+    env_file:
+      - .env
     container_name: dance-minio
     ports:
       - "9000:9000" # API
       - "9001:9001" # Console
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-      # Allow browser calls from your public frontend
-      - MINIO_API_CORS_ALLOW_ORIGIN=https://storage.valoren.click
+      - MINIO_ROOT_USER=${S3_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${S3_SECRET_KEY}
     volumes:
       - minio-data:/data
     networks:
@@ -131,6 +141,8 @@ services:
   # Create bucket on startup
   minio-init:
     image: minio/mc:latest
+    env_file:
+      - .env
     depends_on:
       minio:
         condition: service_healthy
@@ -138,21 +150,23 @@ services:
       - dance-network
     entrypoint: >
       /bin/sh -c "
-      mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      mc mb myminio/dance-videos --ignore-existing;
-      mc anonymous set download myminio/dance-videos;
+      mc alias set myminio ${S3_ENDPOINT} ${S3_ACCESS_KEY} ${S3_SECRET_KEY};
+      mc mb myminio/${S3_BUCKET} --ignore-existing;
+      mc anonymous set download myminio/${S3_BUCKET};
       exit 0;
       "
 
   postgres:
     image: postgres:15-alpine
+    env_file:
+      - .env
     container_name: dance-postgres
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=danceuser
-      - POSTGRES_PASSWORD=dancepass
-      - POSTGRES_DB=dancedb
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -167,6 +181,8 @@ services:
   video-worker-cpu:
     <<: *video-worker-common
     container_name: dance-video-worker-cpu
+    env_file:
+      - .env
     environment: *cpu-env
     profiles:
       - cpu
@@ -174,6 +190,8 @@ services:
   video-worker-nvidia:
     <<: *video-worker-common
     container_name: dance-video-worker-nvidia
+    env_file:
+      - .env
     environment: *nvidia-env
     deploy:
       resources:
@@ -188,6 +206,8 @@ services:
   video-worker-amd:
     <<: *video-worker-common
     container_name: dance-video-worker-amd
+    env_file:
+      - .env
     environment: *amd-env
     devices:
       - /dev/kfd:/dev/kfd
@@ -207,17 +227,21 @@ services:
   video-worker-mac:
     <<: *video-worker-common
     container_name: dance-video-worker-mac
+    env_file:
+      - .env
     environment: *mac-env
     profiles:
       - mac
 
   rq-dashboard:
     image: eoranged/rq-dashboard
+    env_file:
+      - .env
     container_name: dance-rq-dashboard
     ports:
       - "9181:9181"
     environment:
-      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
+      - RQ_DASHBOARD_REDIS_URL=${RQ_DASHBOARD_REDIS_URL}
     depends_on:
       - redis
     networks:
@@ -273,16 +297,18 @@ services:
 
   grafana:
     image: grafana/grafana:10.3.1
+    env_file:
+      - .env
     container_name: dance-grafana
     ports:
       - "3000:3000"
     environment:
-      - GF_SERVER_ROOT_URL=https://logs.valoren.click
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL}
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=${GF_USERS_ALLOW_SIGN_UP}
+      - GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED}
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=${GF_AUTH_ANONYMOUS_ORG_ROLE}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro

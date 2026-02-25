@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.models.job import Job, JobStatus
 from app.schemas.job import JobCreate, JobStatusUpdate
+from app.core.logging import log_job_status
 
 
 class JobService:
@@ -39,6 +40,8 @@ class JobService:
         db.add(new_job)
         db.commit()
         db.refresh(new_job)
+
+        log_job_status(job_id, status="created", user_id=user_id, file_name=job_data.filename)
 
         return new_job
 
@@ -129,6 +132,12 @@ class JobService:
 
         db.commit()
         db.refresh(job)
+
+        log_job_status(
+            job_id,
+            status=status_update.status.value,
+            error=status_update.error_message,
+        )
 
         return job
 

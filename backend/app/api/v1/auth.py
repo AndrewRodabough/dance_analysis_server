@@ -11,6 +11,7 @@ from app.schemas.token import Token
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.core.config import settings
 from app.core.deps import get_current_active_user
+from app.core.logging import log_auth_event
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
+        log_auth_event(action="register", email=user_data.email, success=False, error="Email already registered")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -35,6 +37,7 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if username already exists
     existing_username = db.query(User).filter(User.username == user_data.username).first()
     if existing_username:
+        log_auth_event(action="register", email=user_data.email, success=False, error="Username already taken")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already taken"
@@ -54,6 +57,8 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
+    log_auth_event(action="register", email=user_data.email, user_id=new_user.id, success=True)
+
     return new_user
 
 
@@ -71,6 +76,7 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_credentials.email).first()
 
     if not user or not verify_password(user_credentials.password, user.hashed_password):
+        log_auth_event(action="login", email=user_credentials.email, success=False, error="Invalid credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -78,6 +84,7 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
     if not user.is_active:
+        log_auth_event(action="login", email=user_credentials.email, user_id=user.id, success=False, error="Inactive account")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive"
@@ -89,6 +96,8 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         data={"sub": str(user.id)},
         expires_delta=access_token_expires
     )
+
+    log_auth_event(action="login", user_id=user.id, success=True)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
