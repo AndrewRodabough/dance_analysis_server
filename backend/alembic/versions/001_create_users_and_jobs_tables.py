@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('job_id', sa.String(length=36), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='jobstatus'), nullable=False),
+        sa.Column('status', sa.Enum('pending', 'processing', 'completed', 'failed', name='jobstatus'), nullable=False),
         sa.Column('filename', sa.String(length=255), nullable=False),
         sa.Column('video_path', sa.String(length=500), nullable=True),
         sa.Column('result_path', sa.String(length=500), nullable=True),

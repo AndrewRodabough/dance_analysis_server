@@ -337,9 +337,9 @@ async def submit_video_analysis(
         return {
             "job_id": job_id,
             "status": "queued",
-            "stage": "pose-estimation",
+            "stage": "analysis",
             "s3_key": s3_key,
-            "message": "Video uploaded and queued for pose estimation"
+            "message": "Video uploaded and queued for analysis"
         }
 
     except Exception as e:

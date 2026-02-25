@@ -9,7 +9,7 @@ from pathlib import Path
 
 from logging_config import setup_logging, get_logger, log_job_status
 from database import get_db_session, get_next_pending_job, update_job_status
-from tasks import process_job
+from app.tasks import process_job
 
 # Configure structured JSON logging
 setup_logging()
@@ -50,8 +50,6 @@ def run_worker():
                         db,
                         job_id,
                         "completed",
-                        result_path=result.get('result_path'),
-                        data_path=result.get('data_path')
                     )
                     log_job_status(job_id, status="completed")
 

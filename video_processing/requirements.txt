@@ -8,3 +8,4 @@ opencv-python
 python-json-logger
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+watchfiles==0.21.0

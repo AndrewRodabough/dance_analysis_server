@@ -11,5 +11,7 @@ backend/test_outputs/
 *.mp4
 *.pth
 *.MOV
+
+.vscode/
 .DS_Store
 /DS_Store

@@ -20,11 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /workspace
 
 # Install Python dependencies: RQ + boto3 + all ML/vision libraries
-COPY requirements.txt .
+COPY video_processing/requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
-COPY . .
+
+COPY video_processing/ .
+
+# Copy shared modules from parent directory
+COPY shared/ /workspace/shared
 
 # Create necessary directories
 RUN mkdir -p temp outputs

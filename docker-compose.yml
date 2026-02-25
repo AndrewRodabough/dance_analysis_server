@@ -38,11 +38,13 @@ x-mac-env: &mac-env
 # Common worker configuration anchor
 x-video-worker-common: &video-worker-common
   build:
-    context: ./video_processing
-    dockerfile: Dockerfile
+    context: .
+    dockerfile: video_processing/Dockerfile
   volumes:
     - ./video_processing:/workspace
+    - ./shared:/workspace/shared:ro
     - video-temp:/workspace/temp
+    - ./outputs:/workspace/outputs
   depends_on:
     postgres:
       condition: service_healthy
@@ -51,7 +53,10 @@ x-video-worker-common: &video-worker-common
   networks:
     - dance-network
   restart: unless-stopped
-  command: ["python3", "worker.py"]
+  environment:
+    ENABLE_HOT_UPDATES: "true"
+  command: ["sh", "-c", "if [ \"$ENABLE_HOT_UPDATES\" = \"true\" ]; then watchfiles --filter python --ignore-paths /workspace/temp 'python3 worker.py'; else python3 worker.py; fi"]
+
 
 services:
   backend:
