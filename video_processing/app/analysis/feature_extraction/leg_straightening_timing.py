@@ -615,10 +615,6 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         # STATE: EXTENSION (The Reach)
         # ------------------------------------------------------------------
         elif current_state == WalkingState.EXTENSION:
-            if is_confident:
-                # CHECK 5: Early Locking / Stumping
-                if active_knee_angle > deg_to_rad(178) and active_ankle_velocity > PLANT_THRESHOLD_2D:
-                    faults.append({"frame": f_idx, "type": "EARLY_LOCK_STUMPING"})
 
             # TRANSITION: Foot slows down (plants) AND is sufficiently forward
             if active_ankle_velocity < PLANT_THRESHOLD_2D and active_ankle_hip_offset > ANKLE_FORWARD_THRESHOLD_2D:
