@@ -46,6 +46,7 @@ def upgrade() -> None:
         sa.Column('result_path', sa.String(length=500), nullable=True),
         sa.Column('data_path', sa.String(length=500), nullable=True),
         sa.Column('error_message', sa.Text(), nullable=True),
+        sa.Column('attempts', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),

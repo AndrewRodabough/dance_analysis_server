@@ -1,0 +1,7 @@
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://storage.valoren.click</AllowedOrigin>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+  </CORSRule>
+</CORSConfiguration>
