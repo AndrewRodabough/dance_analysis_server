@@ -14,11 +14,25 @@ logger = logging.getLogger(__name__)
 
 # Define skeleton config paths
 # Try multiple locations to support both Docker and local offline environments
-_DEFAULT_CONFIG_DIRS = [
-    Path("/workspace/shared/configs/skeletons"),  # Docker container path
-    Path(__file__).resolve().parents[4] / "shared" / "configs" / "skeletons",  # Local: project_root/shared/configs/skeletons
-    Path(__file__).resolve().parents[5] / "shared" / "configs" / "skeletons",  # Alternative local path
-]
+def _get_config_dirs():
+    """Build list of possible config directories, safely handling parent access."""
+    dirs = [Path("/workspace/shared/configs/skeletons")]  # Docker container path
+    
+    # Local paths - safely try different parent levels
+    file_path = Path(__file__).resolve()
+    parents = file_path.parents
+    
+    # Try parents[4] first (standard project root)
+    if len(parents) > 4:
+        dirs.append(parents[4] / "shared" / "configs" / "skeletons")
+    
+    # Try parents[3] as fallback (alternative structure)
+    if len(parents) > 3:
+        dirs.append(parents[3] / "shared" / "configs" / "skeletons")
+    
+    return dirs
+
+_DEFAULT_CONFIG_DIRS = _get_config_dirs()
 SKELETON_CONFIGS_DIR = next((p for p in _DEFAULT_CONFIG_DIRS if p.exists()), _DEFAULT_CONFIG_DIRS[0])
 
 

@@ -37,7 +37,7 @@ PASSING_MIN_DIST_2D = 20.0        # pixels: Max distance between ankles to be "P
 PASSING_ENTRANCE_DIST_2D = 40.0   # pixels: Distance threshold to enter passing state
 ANKLE_FORWARD_THRESHOLD_2D = 45.0 # pixels: Min hip-ankle offset for extension (must reach well forward in cycle)
 
-STRAIGHT_LEG_MIN = deg_to_rad(172)  # Minimum angle to be considered "Straight"
+STRAIGHT_LEG_MIN = deg_to_rad(168)  # Minimum angle to be considered "Straight"
 FLEXED_LEG_MAX = deg_to_rad(160)    # Maximum angle to be considered "Flexed" during passing
 RELEASE_DRIVE_MAX = deg_to_rad(170)
 
@@ -54,13 +54,36 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
     weight_transfer = compute_weight_transfer_offsets(pose_data_3d)
     ankle_distances = compute_ankle_to_ankle_distance_xz(pose_data_3d)
 
-    left_knee_idx = pose_data_3d.skeleton.name_to_idx["L_Knee"]
-    right_knee_idx = pose_data_3d.skeleton.name_to_idx["R_Knee"]
-    left_ankle_idx = pose_data_3d.skeleton.name_to_idx["L_Ankle"]
-    right_ankle_idx = pose_data_3d.skeleton.name_to_idx["R_Ankle"]
+    # Get joint indices
+    left_hip_jidx = pose_data_3d.skeleton.name_to_idx["L_Hip"]
+    right_hip_jidx = pose_data_3d.skeleton.name_to_idx["R_Hip"]
+    left_knee_jidx = pose_data_3d.skeleton.name_to_idx["L_Knee"]
+    right_knee_jidx = pose_data_3d.skeleton.name_to_idx["R_Knee"]
+    left_ankle_jidx = pose_data_3d.skeleton.name_to_idx["L_Ankle"]
+    right_ankle_jidx = pose_data_3d.skeleton.name_to_idx["R_Ankle"]
 
-    ankle_velocities = velocities[:, [left_ankle_idx, right_ankle_idx], :]
-    knee_angles = angles[:, [left_knee_idx, right_knee_idx]]
+    # Find the angle indices for Hip-Knee-Ankle triplets
+    left_knee_angle_idx = None
+    right_knee_angle_idx = None
+    for angle_idx in range(pose_data_3d.skeleton.joints_index.shape[1]):
+        triplet = pose_data_3d.skeleton.joints_index[:, angle_idx]
+        # Check for (Hip, Knee, Ankle) or (Ankle, Knee, Hip)
+        if triplet[1] == left_knee_jidx:  # Knee is the pivot
+            if (triplet[0] == left_hip_jidx and triplet[2] == left_ankle_jidx) or \
+               (triplet[0] == left_ankle_jidx and triplet[2] == left_hip_jidx):
+                left_knee_angle_idx = angle_idx
+        if triplet[1] == right_knee_jidx:  # Knee is the pivot
+            if (triplet[0] == right_hip_jidx and triplet[2] == right_ankle_jidx) or \
+               (triplet[0] == right_ankle_jidx and triplet[2] == right_hip_jidx):
+                right_knee_angle_idx = angle_idx
+
+    if left_knee_angle_idx is None or right_knee_angle_idx is None:
+        raise ValueError(f"Could not find knee angle indices. L={left_knee_angle_idx}, R={right_knee_angle_idx}")
+
+    logger.info(f"Knee angle indices: L={left_knee_angle_idx}, R={right_knee_angle_idx}")
+
+    ankle_velocities = velocities[:, [left_ankle_jidx, right_ankle_jidx], :]
+    knee_angles = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
 
     current_state = STARTING_STATE
     current_standing_leg = 0  # 0=left, 1=right
@@ -77,6 +100,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         active_knee_angle = knee_angles[f_idx, current_moving_leg]
         standing_knee_angle = knee_angles[f_idx, current_standing_leg]
         active_ankle_velocity = magnitude(ankle_velocities[f_idx, current_moving_leg])
+        active_ankle_velocity_x = ankle_velocities[f_idx, current_moving_leg, 0]  # X-axis velocity for forward movement
         standing_ankle_velocity = magnitude(ankle_velocities[f_idx, current_standing_leg])
         active_ankle_hip_offset = np.linalg.norm(weight_transfer[f_idx, current_moving_leg])
         standing_ankle_hip_offset = np.linalg.norm(weight_transfer[f_idx, current_standing_leg])
@@ -115,6 +139,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         elif current_state == WalkingState.PASSING:
             # CHECK 3: The "Broken Bow" (Standing leg softens)
             if standing_knee_angle < STRAIGHT_LEG_MIN:
+                logger.debug(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
                 faults.append({"frame": f_idx, "type": "DROPPED_HEIGHT_IN_PASSING"})
 
             # CHECK 4: Stiff Passing Leg (The Arrow isn't drawn)
@@ -486,13 +511,35 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
     ankle_distances = compute_ankle_to_ankle_distance_2d(pose_data_2d)
 
     # Get joint indices (COCO-17 format uses lowercase names)
-    left_knee_idx = pose_data_2d.skeleton.name_to_idx["left_knee"]
-    right_knee_idx = pose_data_2d.skeleton.name_to_idx["right_knee"]
-    left_ankle_idx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
-    right_ankle_idx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
+    left_hip_jidx = pose_data_2d.skeleton.name_to_idx["left_hip"]
+    right_hip_jidx = pose_data_2d.skeleton.name_to_idx["right_hip"]
+    left_knee_jidx = pose_data_2d.skeleton.name_to_idx["left_knee"]
+    right_knee_jidx = pose_data_2d.skeleton.name_to_idx["right_knee"]
+    left_ankle_jidx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
+    right_ankle_jidx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
 
-    ankle_velocities = velocities[:, [left_ankle_idx, right_ankle_idx], :]
-    knee_angles = angles[:, [left_knee_idx, right_knee_idx]]
+    # Find the angle indices for Hip-Knee-Ankle triplets
+    left_knee_angle_idx = None
+    right_knee_angle_idx = None
+    for angle_idx in range(pose_data_2d.skeleton.joints_index.shape[1]):
+        triplet = pose_data_2d.skeleton.joints_index[:, angle_idx]
+        # Check for (Hip, Knee, Ankle) or (Ankle, Knee, Hip)
+        if triplet[1] == left_knee_jidx:  # Knee is the pivot
+            if (triplet[0] == left_hip_jidx and triplet[2] == left_ankle_jidx) or \
+               (triplet[0] == left_ankle_jidx and triplet[2] == left_hip_jidx):
+                left_knee_angle_idx = angle_idx
+        if triplet[1] == right_knee_jidx:  # Knee is the pivot
+            if (triplet[0] == right_hip_jidx and triplet[2] == right_ankle_jidx) or \
+               (triplet[0] == right_ankle_jidx and triplet[2] == right_hip_jidx):
+                right_knee_angle_idx = angle_idx
+
+    if left_knee_angle_idx is None or right_knee_angle_idx is None:
+        raise ValueError(f"Could not find knee angle indices. L={left_knee_angle_idx}, R={right_knee_angle_idx}")
+
+    logger.info(f"Knee angle indices: L={left_knee_angle_idx}, R={right_knee_angle_idx}")
+
+    ankle_velocities = velocities[:, [left_ankle_jidx, right_ankle_jidx], :]
+    knee_angles = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
 
     # Initialize state machine
     current_state = STARTING_STATE
@@ -518,8 +565,8 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
 
         # Check for low confidence - skip fault detection if data is unreliable
         confidence = pose_data_2d.confidence[f_idx]
-        left_conf = confidence[left_ankle_idx] * confidence[left_knee_idx]
-        right_conf = confidence[right_ankle_idx] * confidence[right_knee_idx]
+        left_conf = confidence[left_ankle_jidx] * confidence[left_knee_jidx]
+        right_conf = confidence[right_ankle_jidx] * confidence[right_knee_jidx]
         is_confident = (left_conf > 0.09) and (right_conf > 0.09)  # 0.3^2 threshold
 
         # ------------------------------------------------------------------
@@ -550,6 +597,9 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
             if is_confident:
                 # CHECK 3: Standing leg softens (dropped height)
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
+                    
                     faults.append({"frame": f_idx, "type": "DROPPED_HEIGHT_IN_PASSING"})
 
                 # CHECK 4: Stiff Passing Leg
