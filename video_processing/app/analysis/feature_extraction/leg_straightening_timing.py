@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Dict, Tuple, List, Optional
 
 from shared.skeletons.pose_data import VectorizedPoseData
+from shared.utils.scaling import compute_pixel_scale, BASELINE_PIXELS_PER_METER
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,101 @@ FAULT_DETAILS = {
         "suggestion": "Let the foot finish traveling before committing weight.",
     },
 }
+
+
+class ScaledThresholds2D:
+    """
+    Applies camera distance and FPS scaling to 2D analysis thresholds.
+    
+    The baseline 2D thresholds were calibrated from a specific test video with known
+    camera distance and frame rate (60 FPS). This class scales those thresholds to work
+    with videos taken at different distances and frame rates.
+    
+    Scaling principle:
+    - Distance scaling: A person closer to camera appears taller (more pixels), requiring
+      proportionally higher pixel thresholds. Computed from detected keypoint heights.
+    - FPS scaling: Velocities are frame-to-frame differences. Higher FPS means smaller
+      differences per frame for the same real-world motion.
+    """
+    
+    def __init__(self, pixels_per_meter: float, fps: float = 60.0):
+        """
+        Args:
+            pixels_per_meter: Computed person height in pixels / 1.7m (actual scale in video)
+            fps: Frame rate of video (default 60, which is the baseline calibration rate)
+        """
+        self.pixels_per_meter = pixels_per_meter
+        self.fps = fps
+        
+        # Compute scaling factors
+        self.distance_scale = pixels_per_meter / BASELINE_PIXELS_PER_METER
+        self.fps_scale = 60.0 / fps  # Normalize to 60 FPS baseline
+        
+        logger.info(
+            f"ScaledThresholds2D initialized: "
+            f"distance_scale={self.distance_scale:.3f}x (ppm={pixels_per_meter:.1f}, baseline={BASELINE_PIXELS_PER_METER:.1f}), "
+            f"fps_scale={self.fps_scale:.3f}x ({fps}fps -> 60fps baseline)"
+        )
+    
+    # Velocity thresholds: scaled by both distance AND fps
+    # These are harder to trigger when person is far away (fewer pixels) or at low FPS (less motion per frame)
+    @property
+    def velocity_threshold(self) -> float:
+        """Minimum velocity (pixels/frame) to consider foot moving."""
+        return VELOCITY_THRESHOLD_2D * self.distance_scale * self.fps_scale
+    
+    @property
+    def plant_threshold(self) -> float:
+        """Maximum velocity (pixels/frame) to consider foot planted."""
+        return PLANT_THRESHOLD_2D * self.distance_scale * self.fps_scale
+    
+    # Distance thresholds: scaled by distance only (not FPS, since they're spatial not temporal)
+    @property
+    def hip_distance_threshold(self) -> float:
+        """Max distance (pixels) for weight transfer to complete."""
+        return HIP_DISTANCE_THRESHOLD_2D * self.distance_scale
+    
+    @property
+    def breakout_threshold(self) -> float:
+        """Min distance (pixels) to trigger next Release phase."""
+        return BREAKOUT_THRESHOLD_2D * self.distance_scale
+    
+    @property
+    def passing_min_dist(self) -> float:
+        """Max ankle-to-ankle distance (pixels) for Passing state."""
+        return PASSING_MIN_DIST_2D * self.distance_scale
+    
+    @property
+    def passing_entrance_dist(self) -> float:
+        """Distance threshold (pixels) to enter Passing state."""
+        return PASSING_ENTRANCE_DIST_2D * self.distance_scale
+    
+    @property
+    def ankle_forward_threshold(self) -> float:
+        """Min ankle-hip offset (pixels) to trigger Extension state."""
+        return ANKLE_FORWARD_THRESHOLD_2D * self.distance_scale
+    
+    # Angle thresholds: no scaling needed (camera independent, in radians)
+    @property
+    def straight_leg_min(self) -> float:
+        """Minimum angle (radians) to be considered 'Straight'."""
+        return STRAIGHT_LEG_MIN
+    
+    @property
+    def flexed_leg_max(self) -> float:
+        """Maximum angle (radians) to be considered 'Flexed'."""
+        return FLEXED_LEG_MAX
+    
+    @property
+    def release_drive_max(self) -> float:
+        """Maximum angle (radians) for Release/Drive phase."""
+        return RELEASE_DRIVE_MAX
+    
+    def __repr__(self) -> str:
+        return (
+            f"ScaledThresholds2D(ppm={self.pixels_per_meter:.1f}, fps={self.fps:.1f}, "
+            f"dist_scale={self.distance_scale:.3f}, fps_scale={self.fps_scale:.3f})"
+        )
 
 
 def leg_label(leg_idx: int) -> str:
@@ -256,13 +352,13 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
                             "STIFF_PASSING_LEG",
                             current_state.name,
                             leg_label(current_moving_leg),
-                            error_deg=np.rad2deg(active_knee_angle - FLEXED_LEG_MAX),
-                            criteria_deg=np.rad2deg(FLEXED_LEG_MAX),
+                            error_deg=np.rad2deg(active_knee_angle - thresholds.flexed_leg_max),
+                            criteria_deg=np.rad2deg(thresholds.flexed_leg_max),
                         )
                     )
 
             # TRANSITION: Active foot moves past the standing foot
-            if ankle_distance < PASSING_MIN_DIST:  # Added buffer to prevent jittery transitions
+            if ankle_distance < thresholds.passing_min_dist:
                 current_state = WalkingState.EXTENSION
 
 
@@ -630,26 +726,46 @@ def compute_ankle_to_ankle_distance_2d(
     return np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2).astype(np.float32)
 
 
-def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
+def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0) -> Dict[str, Any]:
     """
     Analyzes a sequence of 2D poses from side view for Cha Cha Forward Walk technique.
     
     This version works with COCO-17 format 2D keypoints and adapts the 3D analysis 
     logic to work with side-view projections. Both legs are analyzed simultaneously.
     
+    Automatically scales thresholds based on camera distance (inferred from keypoint heights)
+    and frame rate to make analysis robust across different filming conditions.
+    
     Args:
         pose_data_2d: VectorizedPoseData with 2D skeleton data (frames, joints, 2)
                      Expected format: COCO-17 with lowercase joint names
+        fps: Frame rate of the video in frames per second (default 60, which is the 
+             calibration baseline). Used to normalize velocity thresholds.
                      
     Returns:
         Dictionary containing:
             - "states": List of state names per frame
             - "faults": List of detected faults with frame numbers and types
             - "final_standing_leg": Which leg is supporting at the end
+            - "scaling_info": Debug info about computed scaling factors
     """
-    # Compute features using 2D data
+    # ========================================================================
+    # Step 1: Compute scaling factors for camera distance and FPS
+    # ========================================================================
+    
+    # Compute pixels-per-meter by measuring person height from keypoints
+    pixels_per_meter = compute_pixel_scale(pose_data_2d.skeleton.data)
+    
+    # Create scaled threshold set based on camera distance and FPS
+    thresholds = ScaledThresholds2D(pixels_per_meter=pixels_per_meter, fps=fps)
+    
+    logger.info(f"2D Analysis Scaling: {thresholds}")
+    
+    # ========================================================================
+    # Step 2: Compute features using 2D data (with FPS normalization)
+    # ========================================================================
     angles = pose_data_2d.get_weighted_bone_angles(threshold=0)
-    velocities = pose_data_2d.get_weighted_joint_velocities(threshold=0)
+    velocities = pose_data_2d.get_weighted_joint_velocities(threshold=0, fps=fps)
     weight_transfer = compute_weight_transfer_offsets_2d(pose_data_2d)
     ankle_distances = compute_ankle_to_ankle_distance_2d(pose_data_2d)
 
@@ -716,39 +832,39 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         # STATE: RELEASE (The Drive)
         # ------------------------------------------------------------------
         if current_state == WalkingState.RELEASE:
-            is_moving = active_ankle_velocity > PLANT_THRESHOLD_2D  # Use plant threshold as minimum movement
+            is_moving = active_ankle_velocity > thresholds.plant_threshold  # Use plant threshold as minimum movement
 
             if is_moving and is_confident:
                 # CHECK 1: Standing leg must stay locked
-                if standing_knee_angle < STRAIGHT_LEG_MIN:
+                if standing_knee_angle < thresholds.straight_leg_min:
                     faults.append(
                         build_fault_entry(
                             f_idx,
                             "SOFT_STANDING_LEG_IN_DRIVE",
                             current_state.name,
                             leg_label(current_standing_leg),
-                            error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
-                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                            error_deg=np.rad2deg(thresholds.straight_leg_min - standing_knee_angle),
+                            criteria_deg=np.rad2deg(thresholds.straight_leg_min),
                         )
                     )
 
                 # CHECK 2: Active leg must flex to drive
-                if active_knee_angle > RELEASE_DRIVE_MAX:
+                if active_knee_angle > thresholds.release_drive_max:
                     faults.append(
                         build_fault_entry(
                             f_idx,
                             "NO_DRIVE_ACTION",
                             current_state.name,
                             leg_label(current_moving_leg),
-                            error_deg=np.rad2deg(active_knee_angle - RELEASE_DRIVE_MAX),
-                            criteria_deg=np.rad2deg(RELEASE_DRIVE_MAX),
+                            error_deg=np.rad2deg(active_knee_angle - thresholds.release_drive_max),
+                            criteria_deg=np.rad2deg(thresholds.release_drive_max),
                         )
                     )
 
             # TRANSITION LOGIC
-            approaching_pass = ankle_distance < PASSING_ENTRANCE_DIST_2D
+            approaching_pass = ankle_distance < thresholds.passing_entrance_dist
 
-            if active_ankle_velocity > VELOCITY_THRESHOLD_2D or (is_moving and approaching_pass):
+            if active_ankle_velocity > thresholds.velocity_threshold or (is_moving and approaching_pass):
                 current_state = WalkingState.PASSING
 
         # ------------------------------------------------------------------
@@ -757,9 +873,9 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         elif current_state == WalkingState.PASSING:
             if is_confident:
                 # CHECK 3: Standing leg softens (dropped height)
-                if standing_knee_angle < STRAIGHT_LEG_MIN:
-                    print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
-                    print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
+                if standing_knee_angle < thresholds.straight_leg_min:
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
 
                     faults.append(
                         build_fault_entry(
@@ -767,14 +883,14 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                             "DROPPED_HEIGHT_IN_PASSING",
                             current_state.name,
                             leg_label(current_standing_leg),
-                            error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
-                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                            error_deg=np.rad2deg(thresholds.straight_leg_min - standing_knee_angle),
+                            criteria_deg=np.rad2deg(thresholds.straight_leg_min),
                         )
                     )
 
                 # CHECK 4: Stiff Passing Leg
-                if ankle_distance < PASSING_MIN_DIST_2D:
-                    if active_knee_angle > FLEXED_LEG_MAX:
+                if ankle_distance < thresholds.passing_min_dist:
+                    if active_knee_angle > thresholds.flexed_leg_max:
                         faults.append(
                             build_fault_entry(
                                 f_idx,
@@ -796,7 +912,7 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         elif current_state == WalkingState.EXTENSION:
 
             # TRANSITION: Foot slows down (plants) AND is sufficiently forward
-            if active_ankle_velocity < PLANT_THRESHOLD_2D and active_ankle_hip_offset > ANKLE_FORWARD_THRESHOLD_2D:
+            if active_ankle_velocity < thresholds.plant_threshold and active_ankle_hip_offset > thresholds.ankle_forward_threshold:
                 current_state = WalkingState.ARRIVAL
 
         # ------------------------------------------------------------------
@@ -805,9 +921,9 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         elif current_state == WalkingState.ARRIVAL:
             if is_confident:
                 # CHECK 6: The "Double Straight"
-                if active_knee_angle < STRAIGHT_LEG_MIN or standing_knee_angle < STRAIGHT_LEG_MIN:
+                if active_knee_angle < thresholds.straight_leg_min or standing_knee_angle < thresholds.straight_leg_min:
                     error_deg = np.rad2deg(
-                        max(STRAIGHT_LEG_MIN - active_knee_angle, STRAIGHT_LEG_MIN - standing_knee_angle)
+                        max(thresholds.straight_leg_min - active_knee_angle, thresholds.straight_leg_min - standing_knee_angle)
                     )
                     faults.append(
                         build_fault_entry(
@@ -816,17 +932,17 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                             current_state.name,
                             "Both",
                             error_deg=error_deg,
-                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                            criteria_deg=np.rad2deg(thresholds.straight_leg_min),
                         )
                     )
 
             # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
-            if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD_2D:
+            if active_ankle_hip_offset < thresholds.hip_distance_threshold:
                 # OFFICIAL HANDOVER
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 current_state = WalkingState.RELEASE
 
-            elif standing_ankle_velocity > VELOCITY_THRESHOLD_2D:
+            elif standing_ankle_velocity > thresholds.velocity_threshold:
                 current_state = WalkingState.PASSING
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 faults.append(
@@ -841,5 +957,11 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
     return {
         "states": states,
         "faults": faults,
-        "final_standing_leg": "Right" if current_standing_leg == 1 else "Left"
+        "final_standing_leg": "Right" if current_standing_leg == 1 else "Left",
+        "scaling_info": {
+            "pixels_per_meter": pixels_per_meter,
+            "fps": fps,
+            "distance_scale": thresholds.distance_scale,
+            "fps_scale": thresholds.fps_scale,
+        }
     }

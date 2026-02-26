@@ -130,10 +130,14 @@ class VectorizedSkeleton:
         
         return angles
 
-    def get_joint_velocities(self):
+    def get_joint_velocities(self, fps: float = None):
         """
         Get velocities of all joints across all frames.
         Velocity is calculated as the change in position between consecutive frames.
+        
+        Args:
+            fps: Frames per second for FPS normalization. If provided, velocities are 
+                 scaled to be independent of frame rate. Default is None (raw pixel/meter differences).
         
         Returns:
             Numpy array of shape (Frames, Joints, Channels) with joint velocities.
@@ -158,14 +162,22 @@ class VectorizedSkeleton:
         # Approximate frame 0 velocity using frame 1 velocity
         velocities[0] = velocities[1]
         
+        # Apply FPS normalization if provided
+        if fps is not None and fps > 0:
+            # Normalize to 60 FPS baseline (current calibration was done at 60 FPS)
+            fps_normalization_factor = 60.0 / fps
+            velocities = velocities * fps_normalization_factor
+        
         return velocities
 
-    def get_joint_velocity(self, joint_name: str):
+    def get_joint_velocity(self, joint_name: str, fps: float = None):
         """
         Get velocity of a specific joint across all frames.
         
         Args:
             joint_name: Name of the joint
+            fps: Frames per second for FPS normalization. If provided, velocities are 
+                 scaled to be independent of frame rate. Default is None (raw differences).
             
         Returns:
             Numpy array of shape (Frames, Channels) with joint velocity.
@@ -194,6 +206,12 @@ class VectorizedSkeleton:
         
         # Approximate frame 0 velocity using frame 1 velocity
         velocity[0] = velocity[1]
+        
+        # Apply FPS normalization if provided
+        if fps is not None and fps > 0:
+            # Normalize to 60 FPS baseline
+            fps_normalization_factor = 60.0 / fps
+            velocity = velocity * fps_normalization_factor
         
         return velocity
 
