@@ -3,7 +3,7 @@
 import logging
 import numpy as np
 from enum import Enum
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple, List, Optional
 
 from shared.skeletons.pose_data import VectorizedPoseData
 
@@ -42,6 +42,83 @@ FLEXED_LEG_MAX = deg_to_rad(160)    # Maximum angle to be considered "Flexed" du
 RELEASE_DRIVE_MAX = deg_to_rad(170)
 
 STARTING_STATE = WalkingState.RELEASE
+
+DEFAULT_FAULT_DETAILS = {
+    "severity": "Medium",
+    "error": "Technique issue detected.",
+    "suggestion": "Review leg timing and alignment during the step.",
+}
+
+FAULT_DETAILS = {
+    "SOFT_STANDING_LEG_IN_DRIVE": {
+        "severity": "High",
+        "error": "Standing leg bent during the drive.",
+        "suggestion": "Keep the standing leg straighter to maintain a strong push.",
+    },
+    "NO_DRIVE_ACTION": {
+        "severity": "Medium",
+        "error": "Moving leg stayed too straight during the push.",
+        "suggestion": "Allow a small knee bend to drive the step forward.",
+    },
+    "DROPPED_HEIGHT_IN_PASSING": {
+        "severity": "Medium",
+        "error": "Standing leg softened while the feet were passing.",
+        "suggestion": "Maintain height through the standing leg during passing.",
+    },
+    "STIFF_PASSING_LEG": {
+        "severity": "Medium",
+        "error": "Passing leg stayed too straight.",
+        "suggestion": "Let the knee flex as the legs pass.",
+    },
+    "EARLY_LOCK_STUMPING": {
+        "severity": "Medium",
+        "error": "Leg locked straight before the foot finished moving.",
+        "suggestion": "Delay straightening until the foot is about to settle.",
+    },
+    "SOFT_KNEE_ARRIVAL": {
+        "severity": "High",
+        "error": "Knee was soft at arrival.",
+        "suggestion": "Straighten the arriving leg as weight transfers onto it.",
+    },
+    "BUCKLED_STANDING_LEG": {
+        "severity": "Medium",
+        "error": "Standing leg buckled after arrival.",
+        "suggestion": "Keep the supporting knee lifted and straight.",
+    },
+    "WEIGHT_TRANSFER_WITH_MOVING_FOOT": {
+        "severity": "High",
+        "error": "Weight transferred while the foot was still moving.",
+        "suggestion": "Let the foot finish traveling before committing weight.",
+    },
+}
+
+
+def leg_label(leg_idx: int) -> str:
+    return "Right" if leg_idx == 1 else "Left"
+
+
+def build_fault_entry(
+    frame: int,
+    fault_type: str,
+    state_name: str,
+    leg: Optional[str] = None,
+    error_deg: Optional[float] = None,
+    criteria_deg: Optional[float] = None,
+) -> Dict[str, Any]:
+    details = FAULT_DETAILS.get(fault_type, DEFAULT_FAULT_DETAILS)
+    entry = {
+        "frame": frame,
+        "type": fault_type,
+        "state": state_name,
+    }
+    if leg:
+        entry["leg"] = leg
+    if error_deg is not None:
+        entry["error_deg"] = float(error_deg)
+    if criteria_deg is not None:
+        entry["criteria_deg"] = float(criteria_deg)
+    entry.update(details)
+    return entry
       
 def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
     """
@@ -116,11 +193,29 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
             if is_moving:
                 # CHECK 1: Standing leg must stay locked (The Anchor)
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
-                    faults.append({"frame": f_idx, "type": "SOFT_STANDING_LEG_IN_DRIVE"})
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "SOFT_STANDING_LEG_IN_DRIVE",
+                            current_state.name,
+                            leg_label(current_standing_leg),
+                            error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
+                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                        )
+                    )
 
                 # CHECK 2: Active leg must flex to drive (The Push)
                 if active_knee_angle > RELEASE_DRIVE_MAX:
-                    faults.append({"frame": f_idx, "type": "NO_DRIVE_ACTION"})
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "NO_DRIVE_ACTION",
+                            current_state.name,
+                            leg_label(current_moving_leg),
+                            error_deg=np.rad2deg(active_knee_angle - RELEASE_DRIVE_MAX),
+                            criteria_deg=np.rad2deg(RELEASE_DRIVE_MAX),
+                        )
+                    )
 
             # TRANSITION LOGIC (Improved)
             # We move to PASSING if:
@@ -140,17 +235,35 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
             # CHECK 3: The "Broken Bow" (Standing leg softens)
             if standing_knee_angle < STRAIGHT_LEG_MIN:
                 logger.debug(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
-                faults.append({"frame": f_idx, "type": "DROPPED_HEIGHT_IN_PASSING"})
+                faults.append(
+                    build_fault_entry(
+                        f_idx,
+                        "DROPPED_HEIGHT_IN_PASSING",
+                        current_state.name,
+                        leg_label(current_standing_leg),
+                        error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
+                        criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                    )
+                )
 
             # CHECK 4: Stiff Passing Leg (The Arrow isn't drawn)
             # Only check this if we are physically passing the standing leg
             if ankle_distance < PASSING_MIN_DIST:
                 if active_knee_angle > FLEXED_LEG_MAX:
-                    faults.append({"frame": f_idx, "type": "STIFF_PASSING_LEG"})
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "STIFF_PASSING_LEG",
+                            current_state.name,
+                            leg_label(current_moving_leg),
+                            error_deg=np.rad2deg(active_knee_angle - FLEXED_LEG_MAX),
+                            criteria_deg=np.rad2deg(FLEXED_LEG_MAX),
+                        )
+                    )
 
             # TRANSITION: Active foot moves past the standing foot
             if ankle_distance < PASSING_MIN_DIST:  # Added buffer to prevent jittery transitions
-                 current_state = WalkingState.EXTENSION
+                current_state = WalkingState.EXTENSION
 
 
         # ------------------------------------------------------------------
@@ -160,7 +273,16 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
             # CHECK 5: Early Locking / Stumping
             # Leg is straight, but foot is still moving fast (hasn't landed)
             if active_knee_angle > deg_to_rad(178) and active_ankle_velocity > PLANT_THRESHOLD:
-                faults.append({"frame": f_idx, "type": "EARLY_LOCK_STUMPING"})
+                faults.append(
+                    build_fault_entry(
+                        f_idx,
+                        "EARLY_LOCK_STUMPING",
+                        current_state.name,
+                        leg_label(current_moving_leg),
+                        error_deg=np.rad2deg(active_knee_angle - deg_to_rad(178)),
+                        criteria_deg=178.0,
+                    )
+                )
 
             # TRANSITION: Foot slows down (plants) AND is sufficiently forward
             if active_ankle_velocity < PLANT_THRESHOLD and active_ankle_hip_offset > 0.34 and ankle_distance > 0.34:
@@ -173,7 +295,19 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         elif current_state == WalkingState.ARRIVAL:
             # CHECK 6: The "Double Straight" (International Latin Standard)
             if active_knee_angle < STRAIGHT_LEG_MIN or standing_knee_angle < STRAIGHT_LEG_MIN:
-                faults.append({"frame": f_idx, "type": "SOFT_KNEE_ARRIVAL"})
+                error_deg = np.rad2deg(
+                    max(STRAIGHT_LEG_MIN - active_knee_angle, STRAIGHT_LEG_MIN - standing_knee_angle)
+                )
+                faults.append(
+                    build_fault_entry(
+                        f_idx,
+                        "SOFT_KNEE_ARRIVAL",
+                        current_state.name,
+                        "Both",
+                        error_deg=error_deg,
+                        criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                    )
+                )
 
             # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
             if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD:
@@ -190,7 +324,16 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
             
             # CHECK 7: Buckling after arrival
             if standing_knee_angle < STRAIGHT_LEG_MIN:
-                faults.append({"frame": f_idx, "type": "BUCKLED_STANDING_LEG"})
+                faults.append(
+                    build_fault_entry(
+                        f_idx,
+                        "BUCKLED_STANDING_LEG",
+                        current_state.name,
+                        leg_label(current_standing_leg),
+                        error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
+                        criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                    )
+                )
 
             # TRANSITION: Hips "break out" forward to start next step
             # We track the distance between the NEW standing leg and the hips
@@ -578,11 +721,29 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
             if is_moving and is_confident:
                 # CHECK 1: Standing leg must stay locked
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
-                    faults.append({"frame": f_idx, "type": "SOFT_STANDING_LEG_IN_DRIVE"})
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "SOFT_STANDING_LEG_IN_DRIVE",
+                            current_state.name,
+                            leg_label(current_standing_leg),
+                            error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
+                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                        )
+                    )
 
                 # CHECK 2: Active leg must flex to drive
                 if active_knee_angle > RELEASE_DRIVE_MAX:
-                    faults.append({"frame": f_idx, "type": "NO_DRIVE_ACTION"})
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "NO_DRIVE_ACTION",
+                            current_state.name,
+                            leg_label(current_moving_leg),
+                            error_deg=np.rad2deg(active_knee_angle - RELEASE_DRIVE_MAX),
+                            criteria_deg=np.rad2deg(RELEASE_DRIVE_MAX),
+                        )
+                    )
 
             # TRANSITION LOGIC
             approaching_pass = ankle_distance < PASSING_ENTRANCE_DIST_2D
@@ -599,13 +760,31 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
                     print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
                     print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(STRAIGHT_LEG_MIN):.1f}°)")
-                    
-                    faults.append({"frame": f_idx, "type": "DROPPED_HEIGHT_IN_PASSING"})
+
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "DROPPED_HEIGHT_IN_PASSING",
+                            current_state.name,
+                            leg_label(current_standing_leg),
+                            error_deg=np.rad2deg(STRAIGHT_LEG_MIN - standing_knee_angle),
+                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                        )
+                    )
 
                 # CHECK 4: Stiff Passing Leg
                 if ankle_distance < PASSING_MIN_DIST_2D:
                     if active_knee_angle > FLEXED_LEG_MAX:
-                        faults.append({"frame": f_idx, "type": "STIFF_PASSING_LEG"})
+                        faults.append(
+                            build_fault_entry(
+                                f_idx,
+                                "STIFF_PASSING_LEG",
+                                current_state.name,
+                                leg_label(current_moving_leg),
+                                error_deg=np.rad2deg(active_knee_angle - FLEXED_LEG_MAX),
+                                criteria_deg=np.rad2deg(FLEXED_LEG_MAX),
+                            )
+                        )
 
             # TRANSITION: Active foot moves past the standing foot
             if ankle_distance < PASSING_MIN_DIST_2D:
@@ -627,7 +806,19 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
             if is_confident:
                 # CHECK 6: The "Double Straight"
                 if active_knee_angle < STRAIGHT_LEG_MIN or standing_knee_angle < STRAIGHT_LEG_MIN:
-                    faults.append({"frame": f_idx, "type": "SOFT_KNEE_ARRIVAL"})
+                    error_deg = np.rad2deg(
+                        max(STRAIGHT_LEG_MIN - active_knee_angle, STRAIGHT_LEG_MIN - standing_knee_angle)
+                    )
+                    faults.append(
+                        build_fault_entry(
+                            f_idx,
+                            "SOFT_KNEE_ARRIVAL",
+                            current_state.name,
+                            "Both",
+                            error_deg=error_deg,
+                            criteria_deg=np.rad2deg(STRAIGHT_LEG_MIN),
+                        )
+                    )
 
             # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
             if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD_2D:
@@ -638,7 +829,14 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
             elif standing_ankle_velocity > VELOCITY_THRESHOLD_2D:
                 current_state = WalkingState.PASSING
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
-                faults.append({"frame": f_idx, "type": "WEIGHT_TRANSFER_WITH_MOVING_FOOT"})
+                faults.append(
+                    build_fault_entry(
+                        f_idx,
+                        "WEIGHT_TRANSFER_WITH_MOVING_FOOT",
+                        current_state.name,
+                        leg_label(current_moving_leg),
+                    )
+                )
 
     return {
         "states": states,

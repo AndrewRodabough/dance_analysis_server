@@ -40,6 +40,9 @@ def extract_features(
             probe_data_ranges_2d(pose_data_2d)
             results = analyze_cha_cha_walk_2d(pose_data_2d)
             log_analysis_summary(results)
+            features = {
+                "2d_walks": results,
+            }
         else:
             if pose_data_3d is None:
                 raise ValueError("pose_data_3d must be provided when use_2d_analysis=False")
@@ -49,13 +52,11 @@ def extract_features(
             results = analyze_cha_cha_walk(pose_data_3d)
             log_analysis_summary(results)
 
-        """
-        features = {
-            "walks_straightening": results,
-        }
-        """
-        
-        return {}
+            features = {
+                "3d_walks": results,
+            }
+
+        return features
         
     except Exception as e:
         logger.error(f"Error extracting features: {e}")

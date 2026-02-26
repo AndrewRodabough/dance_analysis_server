@@ -107,8 +107,9 @@ def run_analysis_pipeline(
             stage3_result = run_report_generation_pipeline(
                 pose_data_2d,
                 pose_data_3d,
+                stage2_result,
                 local_video_path=local_video_path,
-                visualization_video_path=visualization_video_path
+                visualization_video_path=visualization_video_path,
             )
             
             # ============================================================================
