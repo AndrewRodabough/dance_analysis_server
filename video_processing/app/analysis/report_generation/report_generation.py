@@ -474,7 +474,7 @@ def _filter_faults_for_reporting(
     if not faults:
         return []
 
-    grouped = _group_faults(faults, merge_gap=0)
+    grouped = _group_faults(faults, merge_gap=1)
     segment_lengths = {
         idx: segment["end"] - segment["start"] + 1
         for idx, segment in enumerate(segments)
