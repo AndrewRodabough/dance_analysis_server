@@ -564,3 +564,253 @@ class Test2DChaChWalk:
         # verify the function signatures exist
         assert callable(analyze_cha_cha_walk)
         assert callable(analyze_cha_cha_walk_2d)
+
+
+# ============================================================================
+# NEW TESTS: Bent vs. Hyper-Extended Leg Differentiation in 2D Analysis
+# ============================================================================
+
+def _make_coco17_pose_data(data: np.ndarray, confidence_value: float = 0.9):
+    """Helper to build a minimal COCO-17 VectorizedPoseData from raw 2D data."""
+    joint_names = [
+        "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+        "left_shoulder", "right_shoulder",
+        "left_elbow", "right_elbow",
+        "left_wrist", "right_wrist",
+        "left_hip", "right_hip",
+        "left_knee", "right_knee",
+        "left_ankle", "right_ankle",
+    ]
+    bones = [
+        ["left_hip", "left_knee"], ["left_knee", "left_ankle"],
+        ["right_hip", "right_knee"], ["right_knee", "right_ankle"],
+        ["left_hip", "right_hip"],
+        ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"],
+    ]
+    num_frames = data.shape[0]
+    skel = VectorizedSkeleton(joint_names, bones)
+    skel.load_data(data)
+    conf = np.ones((num_frames, 17), dtype=np.float32) * confidence_value
+    return VectorizedPoseData(skel, conf)
+
+
+class TestWalkDirectionDetection:
+    """Tests for determine_walk_direction_2d."""
+
+    def test_walking_right_detected(self):
+        """Person moving in +X direction should return +1."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            determine_walk_direction_2d,
+        )
+        num_frames = 10
+        data = np.zeros((num_frames, 17, 2), dtype=np.float32)
+        for f in range(num_frames):
+            x = 400 + f * 50  # hips move right
+            data[f, 11, :] = [x - 10, 600]  # left_hip
+            data[f, 12, :] = [x + 10, 600]  # right_hip
+
+        pd = _make_coco17_pose_data(data)
+        assert determine_walk_direction_2d(pd) == 1
+
+    def test_walking_left_detected(self):
+        """Person moving in -X direction should return -1."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            determine_walk_direction_2d,
+        )
+        num_frames = 10
+        data = np.zeros((num_frames, 17, 2), dtype=np.float32)
+        for f in range(num_frames):
+            x = 800 - f * 50  # hips move left
+            data[f, 11, :] = [x - 10, 600]
+            data[f, 12, :] = [x + 10, 600]
+
+        pd = _make_coco17_pose_data(data)
+        assert determine_walk_direction_2d(pd) == -1
+
+    def test_single_frame_defaults_to_right(self):
+        """Single-frame clip cannot determine direction; should default to +1."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            determine_walk_direction_2d,
+        )
+        data = np.zeros((1, 17, 2), dtype=np.float32)
+        data[0, 11, :] = [400, 600]
+        data[0, 12, :] = [420, 600]
+        pd = _make_coco17_pose_data(data)
+        assert determine_walk_direction_2d(pd) == 1
+
+
+class TestKneeDeviation:
+    """Tests for compute_knee_deviation_2d."""
+
+    def test_straight_leg_zero_deviation(self):
+        """Knee on the hip-ankle line should have ~0 deviation."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            compute_knee_deviation_2d,
+        )
+        data = np.zeros((3, 17, 2), dtype=np.float32)
+        for f in range(3):
+            # Left leg: perfectly straight (knee on the line between hip and ankle)
+            data[f, 11, :] = [500, 600]   # left_hip
+            data[f, 13, :] = [500, 800]   # left_knee (on the line)
+            data[f, 15, :] = [500, 1000]  # left_ankle
+            # Right leg: same
+            data[f, 12, :] = [520, 600]
+            data[f, 14, :] = [520, 800]
+            data[f, 16, :] = [520, 1000]
+
+        pd = _make_coco17_pose_data(data)
+        deviations = compute_knee_deviation_2d(pd)
+        assert deviations.shape == (3, 2)
+        np.testing.assert_allclose(deviations[:, 0], 0.0, atol=1e-4)
+        np.testing.assert_allclose(deviations[:, 1], 0.0, atol=1e-4)
+
+    def test_forward_bent_knee_positive_deviation(self):
+        """Knee bent forward (+X) of the hip-ankle line → positive deviation."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            compute_knee_deviation_2d,
+        )
+        data = np.zeros((2, 17, 2), dtype=np.float32)
+        for f in range(2):
+            data[f, 11, :] = [500, 600]   # left_hip
+            data[f, 13, :] = [530, 800]   # left_knee pushed RIGHT (+X = forward)
+            data[f, 15, :] = [500, 1000]  # left_ankle
+            data[f, 12, :] = [520, 600]
+            data[f, 14, :] = [520, 800]
+            data[f, 16, :] = [520, 1000]
+
+        pd = _make_coco17_pose_data(data)
+        deviations = compute_knee_deviation_2d(pd)
+        # Left knee is 30 px to the right of the hip-ankle line
+        assert deviations[0, 0] > 0, "Forward bent knee should have positive deviation"
+        np.testing.assert_allclose(deviations[0, 0], 30.0, atol=1e-3)
+
+    def test_hyper_extended_knee_negative_deviation(self):
+        """Knee pushed backward (-X) of the hip-ankle line → negative deviation."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            compute_knee_deviation_2d,
+        )
+        data = np.zeros((2, 17, 2), dtype=np.float32)
+        for f in range(2):
+            data[f, 11, :] = [500, 600]   # left_hip
+            data[f, 13, :] = [470, 800]   # left_knee pushed LEFT (-X = backward)
+            data[f, 15, :] = [500, 1000]  # left_ankle
+            data[f, 12, :] = [520, 600]
+            data[f, 14, :] = [520, 800]
+            data[f, 16, :] = [520, 1000]
+
+        pd = _make_coco17_pose_data(data)
+        deviations = compute_knee_deviation_2d(pd)
+        # Left knee is 30 px to the left of the hip-ankle line
+        assert deviations[0, 0] < 0, "Hyper-extended knee should have negative deviation"
+        np.testing.assert_allclose(deviations[0, 0], -30.0, atol=1e-3)
+
+    def test_output_shape(self):
+        """Output should be (frames, 2)."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            compute_knee_deviation_2d,
+        )
+        data = np.zeros((7, 17, 2), dtype=np.float32)
+        for f in range(7):
+            data[f, 11, :] = [500, 600]
+            data[f, 13, :] = [500, 800]
+            data[f, 15, :] = [500, 1000]
+            data[f, 12, :] = [520, 600]
+            data[f, 14, :] = [520, 800]
+            data[f, 16, :] = [520, 1000]
+        pd = _make_coco17_pose_data(data)
+        deviations = compute_knee_deviation_2d(pd)
+        assert deviations.shape == (7, 2)
+        assert deviations.dtype == np.float32
+
+
+class TestHyperExtensionFaultDetection:
+    """Tests that HYPER_EXTENDED_* faults are emitted correctly."""
+
+    def _build_walking_right_data(self, num_frames: int, standing_knee_offset_x: float):
+        """
+        Build a simple rightward-walk dataset.  The standing (left) knee is
+        displaced horizontally by standing_knee_offset_x relative to the straight
+        hip-ankle line.  Negative = backward = hyper-extended.
+        """
+        data = np.zeros((num_frames, 17, 2), dtype=np.float32)
+        for f in range(num_frames):
+            x = 400 + f * 20  # person moves right
+            data[f, 11, :] = [x - 10, 600]    # left_hip (standing)
+            data[f, 12, :] = [x + 10, 600]    # right_hip
+            # Standing (left) leg – knee shifted by standing_knee_offset_x
+            data[f, 13, :] = [x - 10 + standing_knee_offset_x, 800]  # left_knee
+            data[f, 15, :] = [x - 10, 1000]   # left_ankle (directly below hip)
+            # Moving (right) leg – forward and moving
+            data[f, 14, :] = [x + 60, 800]    # right_knee
+            data[f, 16, :] = [x + 80, 1000]   # right_ankle
+        return data
+
+    def test_hyper_extended_standing_leg_emits_fault(self):
+        """Knee significantly behind hip-ankle line triggers HYPER_EXTENDED_STANDING_LEG."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d,
+        )
+        # standing_knee_offset_x = -40 (far behind the line) → hyper-extended
+        data = self._build_walking_right_data(num_frames=25, standing_knee_offset_x=-40.0)
+        pd = _make_coco17_pose_data(data)
+        result = analyze_cha_cha_walk_2d(pd, walk_direction=1)
+        fault_types = {f["type"] for f in result["faults"]}
+        assert "HYPER_EXTENDED_STANDING_LEG" in fault_types
+
+    def test_normal_bent_leg_does_not_emit_hyper_extension_fault(self):
+        """Knee in front of hip-ankle line (correct bend) must NOT trigger hyper-extension."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d,
+        )
+        # standing_knee_offset_x = +20 (forward = correct flexion)
+        data = self._build_walking_right_data(num_frames=25, standing_knee_offset_x=20.0)
+        pd = _make_coco17_pose_data(data)
+        result = analyze_cha_cha_walk_2d(pd, walk_direction=1)
+        fault_types = {f["type"] for f in result["faults"]}
+        assert "HYPER_EXTENDED_STANDING_LEG" not in fault_types
+
+    def test_walk_direction_included_in_result(self):
+        """analyze_cha_cha_walk_2d should return 'walk_direction' in output."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d,
+        )
+        data = self._build_walking_right_data(num_frames=10, standing_knee_offset_x=0.0)
+        pd = _make_coco17_pose_data(data)
+        result = analyze_cha_cha_walk_2d(pd)
+        assert "walk_direction" in result
+        assert result["walk_direction"] in (1, -1)
+
+    def test_explicit_walk_direction_respected(self):
+        """Explicitly passed walk_direction must override auto-detection."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d,
+        )
+        data = self._build_walking_right_data(num_frames=10, standing_knee_offset_x=0.0)
+        pd = _make_coco17_pose_data(data)
+
+        result_right = analyze_cha_cha_walk_2d(pd, walk_direction=1)
+        result_left = analyze_cha_cha_walk_2d(pd, walk_direction=-1)
+        assert result_right["walk_direction"] == 1
+        assert result_left["walk_direction"] == -1
+
+    def test_hyper_extension_direction_flips_with_walk_direction(self):
+        """
+        Same knee position classified differently when walk direction reverses:
+        a backward-deviated knee (negative X) is hyper-extended for rightward
+        walk but correctly bent for leftward walk.
+        """
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            analyze_cha_cha_walk_2d,
+        )
+        # knee at -40 (to the left/behind for rightward walk)
+        data = self._build_walking_right_data(num_frames=25, standing_knee_offset_x=-40.0)
+        pd = _make_coco17_pose_data(data)
+
+        result_right = analyze_cha_cha_walk_2d(pd, walk_direction=1)
+        result_left = analyze_cha_cha_walk_2d(pd, walk_direction=-1)
+
+        fault_types_right = {f["type"] for f in result_right["faults"]}
+        fault_types_left = {f["type"] for f in result_left["faults"]}
+
+        assert "HYPER_EXTENDED_STANDING_LEG" in fault_types_right
+        assert "HYPER_EXTENDED_STANDING_LEG" not in fault_types_left

@@ -3,7 +3,7 @@
 import logging
 import numpy as np
 from enum import Enum
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple, List, Optional
 
 from shared.skeletons.pose_data import VectorizedPoseData
 
@@ -40,6 +40,7 @@ ANKLE_FORWARD_THRESHOLD_2D = 45.0 # pixels: Min hip-ankle offset for extension (
 STRAIGHT_LEG_MIN = deg_to_rad(172)  # Minimum angle to be considered "Straight"
 FLEXED_LEG_MAX = deg_to_rad(160)    # Maximum angle to be considered "Flexed" during passing
 RELEASE_DRIVE_MAX = deg_to_rad(170)
+HYPER_EXTENSION_DEVIATION_THRESHOLD_2D = 5.0  # pixels: Min backward deviation from hip-ankle line to classify as hyper-extended
 
 STARTING_STATE = WalkingState.RELEASE
       
@@ -462,37 +463,140 @@ def compute_ankle_to_ankle_distance_2d(
     return np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2).astype(np.float32)
 
 
-def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
+def determine_walk_direction_2d(pose_data_2d: VectorizedPoseData) -> int:
+    """
+    Determine the horizontal direction of walking from 2D side-view data.
+
+    Uses the net horizontal displacement of the mid-hip across all frames to
+    determine direction. Returns +1 if walking to the right (+X direction)
+    or -1 if walking to the left (-X direction).
+
+    Args:
+        pose_data_2d: VectorizedPoseData with 2D skeleton data (frames, joints, 2)
+
+    Returns:
+        +1 for rightward walk, -1 for leftward walk.
+    """
+    left_hip_idx = pose_data_2d.skeleton.name_to_idx["left_hip"]
+    right_hip_idx = pose_data_2d.skeleton.name_to_idx["right_hip"]
+    skeleton_data = pose_data_2d.skeleton.data
+
+    if skeleton_data.shape[0] < 2:
+        return 1  # Default to right if not enough frames to determine direction
+
+    mid_hip_x = (skeleton_data[:, left_hip_idx, 0] + skeleton_data[:, right_hip_idx, 0]) * 0.5
+    total_displacement = mid_hip_x[-1] - mid_hip_x[0]
+
+    return 1 if total_displacement >= 0 else -1
+
+
+def compute_knee_deviation_2d(pose_data_2d: VectorizedPoseData) -> np.ndarray:
+    """
+    Compute the signed horizontal deviation of each knee from the hip-ankle line.
+
+    For each frame and each leg, computes how far the knee deviates horizontally
+    from the straight line connecting the hip to the ankle.  A positive value
+    means the knee is to the right (+X) of that line; a negative value means it
+    is to the left (-X).
+
+    This deviation is used to distinguish a bent leg (knee forward of the
+    hip-ankle line) from a hyper-extended leg (knee behind the line):
+      - Walking RIGHT (+1): positive deviation = bent/flexed, negative = hyper-extended
+      - Walking LEFT  (-1): negative deviation = bent/flexed, positive = hyper-extended
+
+    Args:
+        pose_data_2d: VectorizedPoseData with 2D skeleton data (frames, joints, 2)
+
+    Returns:
+        Array of shape (frames, 2) where axis 1 is leg (0=left, 1=right).
+        Values are signed horizontal deviations in pixels (or normalized units).
+    """
+    left_hip_idx = pose_data_2d.skeleton.name_to_idx["left_hip"]
+    left_knee_idx = pose_data_2d.skeleton.name_to_idx["left_knee"]
+    left_ankle_idx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
+    right_hip_idx = pose_data_2d.skeleton.name_to_idx["right_hip"]
+    right_knee_idx = pose_data_2d.skeleton.name_to_idx["right_knee"]
+    right_ankle_idx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
+
+    skeleton_data = pose_data_2d.skeleton.data
+    num_frames = skeleton_data.shape[0]
+    deviations = np.zeros((num_frames, 2), dtype=np.float32)
+
+    leg_joints = [
+        (left_hip_idx, left_knee_idx, left_ankle_idx),
+        (right_hip_idx, right_knee_idx, right_ankle_idx),
+    ]
+
+    for leg_idx, (hip_idx, knee_idx, ankle_idx) in enumerate(leg_joints):
+        hip = skeleton_data[:, hip_idx, :]      # (frames, 2)
+        knee = skeleton_data[:, knee_idx, :]    # (frames, 2)
+        ankle = skeleton_data[:, ankle_idx, :]  # (frames, 2)
+
+        hip_to_ankle = ankle - hip              # (frames, 2)
+        hip_to_knee = knee - hip                # (frames, 2)
+
+        # Parameterize the projection of the knee onto the hip-ankle segment
+        length_sq = np.sum(hip_to_ankle ** 2, axis=1)       # (frames,)
+        safe_length_sq = np.where(length_sq == 0, 1.0, length_sq)
+        t = np.sum(hip_to_knee * hip_to_ankle, axis=1) / safe_length_sq  # (frames,)
+
+        # Closest point on the hip-ankle line to the knee
+        closest_x = hip[:, 0] + t * hip_to_ankle[:, 0]     # (frames,)
+
+        # Signed horizontal deviation: positive = knee is to the right of the line
+        deviations[:, leg_idx] = knee[:, 0] - closest_x
+
+    return deviations
+
+
+def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, walk_direction: Optional[int] = None) -> Dict[str, Any]:
     """
     Analyzes a sequence of 2D poses from side view for Cha Cha Forward Walk technique.
     
     This version works with COCO-17 format 2D keypoints and adapts the 3D analysis 
     logic to work with side-view projections. Both legs are analyzed simultaneously.
     
+    Bent vs. hyper-extended leg differentiation:
+        A bent (flexed) knee deviates forward (in the direction of travel) from the
+        straight hip-ankle line. A hyper-extended knee deviates backward (opposite to
+        the direction of travel). The walk_direction parameter controls which side is
+        "forward". When not supplied it is auto-detected from mid-hip displacement.
+
     Args:
         pose_data_2d: VectorizedPoseData with 2D skeleton data (frames, joints, 2)
                      Expected format: COCO-17 with lowercase joint names
+        walk_direction: +1 if the subject walks to the right (+X), -1 if to the left
+                        (-X). Auto-detected from hip displacement when None.
                      
     Returns:
         Dictionary containing:
             - "states": List of state names per frame
             - "faults": List of detected faults with frame numbers and types
             - "final_standing_leg": Which leg is supporting at the end
+            - "walk_direction": The walk direction used (+1 or -1)
     """
+    # Determine walk direction (right = +1, left = -1)
+    if walk_direction is None:
+        walk_direction = determine_walk_direction_2d(pose_data_2d)
+
     # Compute features using 2D data
-    angles = pose_data_2d.get_weighted_bone_angles(threshold=0)
     velocities = pose_data_2d.get_weighted_joint_velocities(threshold=0)
     weight_transfer = compute_weight_transfer_offsets_2d(pose_data_2d)
     ankle_distances = compute_ankle_to_ankle_distance_2d(pose_data_2d)
+    knee_deviations = compute_knee_deviation_2d(pose_data_2d)  # (frames, 2), 0=left, 1=right
+
+    # Compute knee angles directly from named joints to avoid angle-triplet index mismatches
+    left_knee_angles = pose_data_2d.skeleton.get_angle("left_hip", "left_knee", "left_ankle")
+    right_knee_angles = pose_data_2d.skeleton.get_angle("right_hip", "right_knee", "right_ankle")
+    knee_angles = np.stack([left_knee_angles, right_knee_angles], axis=1)  # (frames, 2)
 
     # Get joint indices (COCO-17 format uses lowercase names)
-    left_knee_idx = pose_data_2d.skeleton.name_to_idx["left_knee"]
-    right_knee_idx = pose_data_2d.skeleton.name_to_idx["right_knee"]
     left_ankle_idx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
     right_ankle_idx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
+    left_knee_idx = pose_data_2d.skeleton.name_to_idx["left_knee"]
+    right_knee_idx = pose_data_2d.skeleton.name_to_idx["right_knee"]
 
     ankle_velocities = velocities[:, [left_ankle_idx, right_ankle_idx], :]
-    knee_angles = angles[:, [left_knee_idx, right_knee_idx]]
 
     # Initialize state machine
     current_state = STARTING_STATE
@@ -516,6 +620,13 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
         standing_ankle_hip_offset = abs(weight_transfer[f_idx, current_standing_leg, 0])
         ankle_distance = ankle_distances[f_idx]
 
+        # Knee deviation projected onto the walk direction axis.
+        # A negative value means the knee is behind the hip-ankle line (hyper-extended).
+        active_knee_deviation = knee_deviations[f_idx, current_moving_leg] * walk_direction
+        standing_knee_deviation = knee_deviations[f_idx, current_standing_leg] * walk_direction
+        standing_is_hyper_extended = standing_knee_deviation < -HYPER_EXTENSION_DEVIATION_THRESHOLD_2D
+        active_is_hyper_extended = active_knee_deviation < -HYPER_EXTENSION_DEVIATION_THRESHOLD_2D
+
         # Check for low confidence - skip fault detection if data is unreliable
         confidence = pose_data_2d.confidence[f_idx]
         left_conf = confidence[left_ankle_idx] * confidence[left_knee_idx]
@@ -532,6 +643,10 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                 # CHECK 1: Standing leg must stay locked
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
                     faults.append({"frame": f_idx, "type": "SOFT_STANDING_LEG_IN_DRIVE"})
+
+                # CHECK 1b: Standing leg is hyper-extended (knee pushed backward)
+                if standing_is_hyper_extended:
+                    faults.append({"frame": f_idx, "type": "HYPER_EXTENDED_STANDING_LEG"})
 
                 # CHECK 2: Active leg must flex to drive
                 if active_knee_angle > RELEASE_DRIVE_MAX:
@@ -551,6 +666,10 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                 # CHECK 3: Standing leg softens (dropped height)
                 if standing_knee_angle < STRAIGHT_LEG_MIN:
                     faults.append({"frame": f_idx, "type": "DROPPED_HEIGHT_IN_PASSING"})
+
+                # CHECK 3b: Standing leg is hyper-extended
+                if standing_is_hyper_extended:
+                    faults.append({"frame": f_idx, "type": "HYPER_EXTENDED_STANDING_LEG"})
 
                 # CHECK 4: Stiff Passing Leg
                 if ankle_distance < PASSING_MIN_DIST_2D:
@@ -583,6 +702,12 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
                 if active_knee_angle < STRAIGHT_LEG_MIN or standing_knee_angle < STRAIGHT_LEG_MIN:
                     faults.append({"frame": f_idx, "type": "SOFT_KNEE_ARRIVAL"})
 
+                # CHECK 6b: Hyper-extended legs at arrival
+                if active_is_hyper_extended:
+                    faults.append({"frame": f_idx, "type": "HYPER_EXTENDED_ACTIVE_LEG"})
+                if standing_is_hyper_extended:
+                    faults.append({"frame": f_idx, "type": "HYPER_EXTENDED_STANDING_LEG"})
+
             # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
             if active_ankle_hip_offset < HIP_DISTANCE_THRESHOLD_2D:
                 # OFFICIAL HANDOVER
@@ -597,5 +722,6 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData) -> Dict[str, Any]:
     return {
         "states": states,
         "faults": faults,
-        "final_standing_leg": "Right" if current_standing_leg == 1 else "Left"
+        "final_standing_leg": "Right" if current_standing_leg == 1 else "Left",
+        "walk_direction": walk_direction,
     }
