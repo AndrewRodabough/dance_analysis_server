@@ -655,6 +655,116 @@ def magnitude_2d(vec):
     return np.sqrt(vec[0] ** 2 + vec[1] ** 2)
 
 
+def detect_walking_direction_2d(
+    pose_data_2d: VectorizedPoseData,
+    window_size: int = 5,
+) -> np.ndarray:
+    """
+    Detect walking direction for each frame in 2D side view by blending 
+    pelvis (hip) and ankle horizontal velocities.
+    
+    In image coordinates (X=right, Y=down):
+    - Positive X velocity = moving right (typically forward in camera view)
+    - Negative X velocity = moving left (typically backward in camera view)
+    
+    Args:
+        pose_data_2d: VectorizedPoseData with 2D skeleton
+        window_size: Window for smoothing velocity direction (frames)
+        
+    Returns:
+        Array of shape (frames,) with direction sign per frame:
+        - +1 if moving in positive X (right/forward)
+        - -1 if moving in negative X (left/backward)
+        - 0 if ambiguous/stationary
+    """
+    left_hip_idx = pose_data_2d.skeleton.name_to_idx["left_hip"]
+    right_hip_idx = pose_data_2d.skeleton.name_to_idx["right_hip"]
+    left_ankle_idx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
+    right_ankle_idx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
+    
+    # Get velocities (X, Y components) at FPS=60 (default baseline)
+    velocities = pose_data_2d.get_weighted_joint_velocities(threshold=0, fps=60.0)
+    
+    # Mid-hip X velocity (average of left/right hip X)
+    hip_x_vel = (velocities[:, left_hip_idx, 0] + velocities[:, right_hip_idx, 0]) / 2.0
+    
+    # Mid-ankle X velocity (average of left/right ankle X)
+    ankle_x_vel = (velocities[:, left_ankle_idx, 0] + velocities[:, right_ankle_idx, 0]) / 2.0
+    
+    # Blend: 60% hip, 40% ankle (hip is more stable, ankle is more responsive)
+    blended_x_vel = 0.6 * hip_x_vel + 0.4 * ankle_x_vel
+    
+    # Smooth with moving average to reduce noise
+    smoothed_vel = np.convolve(blended_x_vel, np.ones(window_size) / window_size, mode='same')
+    
+    # Determine direction sign: +1 if positive, -1 if negative, 0 if near-zero
+    direction = np.sign(smoothed_vel)
+    
+    return direction
+
+
+def apply_hyperextension_clamping_2d(
+    knee_angles: np.ndarray,
+    pose_data_2d: VectorizedPoseData,
+    walking_direction: np.ndarray,
+    hyperextension_threshold: float = np.pi,
+) -> np.ndarray:
+    """
+    Detect and clamp hyperextended knees in 2D analysis.
+    
+    A knee is considered hyperextended when:
+    1. The current angle is less than π (not yet fully straight)
+    2. The knee is bending in the forward direction (aligned with walking direction)
+    3. The bend direction is forward (determined by signed angle computation)
+    
+    When detected, the angle is clamped to π (fully straight/hyperextended) for that frame.
+    
+    Args:
+        knee_angles: Array of shape (frames, 2) with unsigned knee angles [0, π]
+        pose_data_2d: VectorizedPoseData for computing signed bend direction
+        walking_direction: Array of shape (frames,) with direction sign per frame
+        hyperextension_threshold: Angle threshold for clamping (default π)
+        
+    Returns:
+        Array of shape (frames, 2) with clamped angles
+    """
+    clamped_angles = knee_angles.copy()
+    
+    left_hip_idx = pose_data_2d.skeleton.name_to_idx["left_hip"]
+    right_hip_idx = pose_data_2d.skeleton.name_to_idx["right_hip"]
+    left_knee_idx = pose_data_2d.skeleton.name_to_idx["left_knee"]
+    right_knee_idx = pose_data_2d.skeleton.name_to_idx["right_knee"]
+    left_ankle_idx = pose_data_2d.skeleton.name_to_idx["left_ankle"]
+    right_ankle_idx = pose_data_2d.skeleton.name_to_idx["right_ankle"]
+    
+    # Compute signed bend direction for each leg
+    # For left leg: hip -> knee -> ankle
+    left_signed = pose_data_2d.skeleton.get_angle_2d_signed("left_hip", "left_knee", "left_ankle")
+    # For right leg: hip -> knee -> ankle
+    right_signed = pose_data_2d.skeleton.get_angle_2d_signed("right_hip", "right_knee", "right_ankle")
+    
+    for f_idx in range(len(knee_angles)):
+        dir_sign = walking_direction[f_idx]
+        
+        # Left leg
+        left_angle = knee_angles[f_idx, 0]
+        left_is_forward_bend = left_signed["is_forward_bend"][f_idx]
+        
+        # Clamp if: angle < π AND bend direction matches walking direction (forward)
+        if left_angle < hyperextension_threshold and left_is_forward_bend:
+            clamped_angles[f_idx, 0] = hyperextension_threshold
+        
+        # Right leg
+        right_angle = knee_angles[f_idx, 1]
+        right_is_forward_bend = right_signed["is_forward_bend"][f_idx]
+        
+        # Clamp if: angle < π AND bend direction matches walking direction (forward)
+        if right_angle < hyperextension_threshold and right_is_forward_bend:
+            clamped_angles[f_idx, 1] = hyperextension_threshold
+    
+    return clamped_angles
+
+
 def compute_weight_transfer_offsets_2d(
     pose_data_2d: VectorizedPoseData,
 ) -> np.ndarray:
@@ -800,6 +910,14 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
     ankle_velocities = velocities[:, [left_ankle_jidx, right_ankle_jidx], :]
     knee_angles = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
 
+    # ========================================================================
+    # Step 3: Detect walking direction and apply hyperextension clamping
+    # ========================================================================
+    walking_direction = detect_walking_direction_2d(pose_data_2d, window_size=5)
+    knee_angles = apply_hyperextension_clamping_2d(knee_angles, pose_data_2d, walking_direction)
+
+    logger.info("Applied hyperextension clamping to knee angles")
+
     # Initialize state machine
     current_state = STARTING_STATE
     current_standing_leg = 0  # 0=left, 1=right
@@ -817,6 +935,7 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
         standing_knee_angle = knee_angles[f_idx, current_standing_leg]
         active_ankle_velocity = magnitude_2d(ankle_velocities[f_idx, current_moving_leg])
         standing_ankle_velocity = magnitude_2d(ankle_velocities[f_idx, current_standing_leg])
+        standing_ankle_velocity_x = ankle_velocities[f_idx, current_standing_leg, 0]
         # Use X-axis only for weight transfer (horizontal alignment in side view)
         active_ankle_hip_offset = abs(weight_transfer[f_idx, current_moving_leg, 0])
         standing_ankle_hip_offset = abs(weight_transfer[f_idx, current_standing_leg, 0])
@@ -942,7 +1061,7 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 current_state = WalkingState.RELEASE
 
-            elif standing_ankle_velocity > thresholds.velocity_threshold:
+            elif standing_ankle_velocity_x > thresholds.velocity_threshold:
                 current_state = WalkingState.PASSING
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 faults.append(
