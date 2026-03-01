@@ -30,11 +30,11 @@ PASSING_ENTRANCE_DIST = 0.25
 
 # 2D Thresholds (in pixels, calibrated from actual test video data)
 # Data ranges observed: velocity avg=5.7 max=242, hip-ankle X-axis min=0.07 max=155, ankle-ankle min=0.5 max=252
-VELOCITY_THRESHOLD_2D = 4.0       # pixels/frame: Minimum speed to consider foot "moving" (above avg 5.7)
+VELOCITY_THRESHOLD_2D = 8.5       # pixels/frame: Minimum speed to consider foot "moving" (above avg 5.7)
 PLANT_THRESHOLD_2D = 4.0          # pixels/frame: Maximum speed to consider foot "planted"
 HIP_DISTANCE_THRESHOLD_2D = 50.0  # pixels: Below this = weight fully transferred (observed min near 0, used for final alignment)
 BREAKOUT_THRESHOLD_2D = 20.0      # pixels: Min horizontal distance to trigger next Release
-PASSING_MIN_DIST_2D = 20.0        # pixels: Max distance between ankles to be "Passing"
+PASSING_MIN_DIST_2D = 10.0        # pixels: Max distance between ankles to be "Passing"
 PASSING_ENTRANCE_DIST_2D = 40.0   # pixels: Distance threshold to enter passing state
 ANKLE_FORWARD_THRESHOLD_2D = 45.0 # pixels: Min hip-ankle offset for extension (must reach well forward in cycle)
 
@@ -128,17 +128,20 @@ class ScaledThresholds2D:
             f"fps_scale={self.fps_scale:.3f}x ({fps}fps -> 60fps baseline)"
         )
     
-    # Velocity thresholds: scaled by both distance AND fps
-    # These are harder to trigger when person is far away (fewer pixels) or at low FPS (less motion per frame)
+    # Velocity thresholds: scaled by FPS only, NOT by distance.
+    # Rational: actual pixel velocities naturally scale with person size (bigger person = more pixels
+    # of movement per frame for the same real-world motion). Applying distance_scale to the threshold
+    # would double-count that effect and make the threshold too high when the person is close to camera.
+    # Spatial thresholds (below) still use distance_scale since those are pure pixel measurements.
     @property
     def velocity_threshold(self) -> float:
         """Minimum velocity (pixels/frame) to consider foot moving."""
-        return VELOCITY_THRESHOLD_2D * self.distance_scale * self.fps_scale
+        return VELOCITY_THRESHOLD_2D * self.fps_scale
     
     @property
     def plant_threshold(self) -> float:
         """Maximum velocity (pixels/frame) to consider foot planted."""
-        return PLANT_THRESHOLD_2D * self.distance_scale * self.fps_scale
+        return PLANT_THRESHOLD_2D * self.fps_scale
     
     # Distance thresholds: scaled by distance only (not FPS, since they're spatial not temporal)
     @property
@@ -273,7 +276,7 @@ def analyze_cha_cha_walk(pose_data_3d: VectorizedPoseData) -> Dict[str, Any]:
         active_knee_angle = knee_angles[f_idx, current_moving_leg]
         standing_knee_angle = knee_angles[f_idx, current_standing_leg]
         active_ankle_velocity = magnitude(ankle_velocities[f_idx, current_moving_leg])
-        active_ankle_velocity_x = ankle_velocities[f_idx, current_moving_leg, 0]  # X-axis velocity for forward movement
+        active_ankle_velocity_x = ankle_velocities[f_idx, current_moving_leg, 1]  # X-axis velocity for forward movement
         standing_ankle_velocity = magnitude(ankle_velocities[f_idx, current_standing_leg])
         active_ankle_hip_offset = np.linalg.norm(weight_transfer[f_idx, current_moving_leg])
         standing_ankle_hip_offset = np.linalg.norm(weight_transfer[f_idx, current_standing_leg])
@@ -832,8 +835,10 @@ def compute_ankle_to_ankle_distance_2d(
     right_ankle = skeleton_data[:, right_ankle_idx, :]
     diff = left_ankle - right_ankle
 
-    # For side view, use full 2D distance (both horizontal and vertical components)
-    return np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2).astype(np.float32)
+    # Use X-axis only (horizontal/forward separation in side view).
+    # Full 2D distance includes vertical separation which inflates the value when
+    # one foot is raised (heel lift, toe point), masking the true forward distance.
+    return np.abs(diff[:, 0]).astype(np.float32)
 
 
 def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0) -> Dict[str, Any]:
@@ -936,6 +941,13 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
         active_ankle_velocity = magnitude_2d(ankle_velocities[f_idx, current_moving_leg])
         standing_ankle_velocity = magnitude_2d(ankle_velocities[f_idx, current_standing_leg])
         standing_ankle_velocity_x = ankle_velocities[f_idx, current_standing_leg, 0]
+        active_ankle_velocity_x = ankle_velocities[f_idx, current_moving_leg, 0]
+
+        # TEMP DEBUG: log X-axis velocities for threshold calibration
+        print(f"[DEBUG] f={f_idx:03d} state={current_state.name:<10} "
+              f"standing_x={standing_ankle_velocity_x:+7.3f}  active_x={active_ankle_velocity_x:+7.3f}  "
+              f"threshold={thresholds.velocity_threshold:.3f}")
+
         # Use X-axis only for weight transfer (horizontal alignment in side view)
         active_ankle_hip_offset = abs(weight_transfer[f_idx, current_moving_leg, 0])
         standing_ankle_hip_offset = abs(weight_transfer[f_idx, current_standing_leg, 0])
@@ -1055,13 +1067,14 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
                         )
                     )
 
-            # TRANSITION: Weight Transfer (Hips move over the Active Ankle)
-            if active_ankle_hip_offset < thresholds.hip_distance_threshold:
-                # OFFICIAL HANDOVER
-                current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
-                current_state = WalkingState.RELEASE
-
-            elif standing_ankle_velocity_x > thresholds.velocity_threshold:
+            # TRANSITION: A foot starts sliding for the next step before weight is fully transferred (fault).
+            # Check BOTH ankles: which leg launches early varies — sometimes the active foot
+            # immediately relaunches (active_x spikes while standing_x is near zero, e.g. frame 133),
+            # sometimes the standing foot departs early (standing_x spikes while active_x is near zero).
+            # Use X-axis only (horizontal slide), not full magnitude: in cha-cha the heel lifts
+            # before the foot slides, and we only want to detect the forward slide, not the lift.
+            if (abs(standing_ankle_velocity_x) > thresholds.velocity_threshold or
+                    abs(active_ankle_velocity_x) > thresholds.velocity_threshold):
                 current_state = WalkingState.PASSING
                 current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
                 faults.append(
@@ -1072,6 +1085,12 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
                         leg_label(current_moving_leg),
                     )
                 )
+
+            # TRANSITION: Normal weight transfer (Hips move over the Active Ankle)
+            elif active_ankle_hip_offset < thresholds.hip_distance_threshold:
+                # OFFICIAL HANDOVER
+                current_standing_leg, current_moving_leg = current_moving_leg, current_standing_leg
+                current_state = WalkingState.RELEASE
 
     return {
         "states": states,
