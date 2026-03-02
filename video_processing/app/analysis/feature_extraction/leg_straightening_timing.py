@@ -40,7 +40,7 @@ ANKLE_FORWARD_THRESHOLD_2D = 45.0 # pixels: Min hip-ankle offset for extension (
 
 VELOCITY_WINDOW_SIZE = 2           # frames: causal moving-average window for velocity noise reduction
 
-STRAIGHT_LEG_MIN = deg_to_rad(168)  # Minimum angle to be considered "Straight"
+STRAIGHT_LEG_MIN = deg_to_rad(170)  # Minimum angle to be considered "Straight"
 FLEXED_LEG_MAX = deg_to_rad(166)    # Maximum angle to be considered "Flexed" during passing
 RELEASE_DRIVE_MAX = deg_to_rad(170)
 
@@ -58,11 +58,23 @@ FAULT_DETAILS = {
         "error": "Standing leg bent during the drive.",
         "suggestion": "Keep the standing leg straighter to maintain a strong push.",
     },
+    "SOFT_KNEE_ARRIVAL": {
+        "severity": "High",
+        "error": "Knee was soft at arrival.",
+        "suggestion": "Straighten the arriving leg as weight transfers onto it.",
+    },
+    "WEIGHT_TRANSFER_WITH_MOVING_FOOT": {
+        "severity": "High",
+        "error": "Weight transferred while the foot was still moving.",
+        "suggestion": "Let the foot finish traveling before committing weight.",
+    },
+
     "NO_DRIVE_ACTION": {
         "severity": "Medium",
         "error": "Moving leg stayed too straight during the push.",
         "suggestion": "Allow a small knee bend to drive the step forward.",
     },
+    
     "DROPPED_HEIGHT_IN_PASSING": {
         "severity": "Medium",
         "error": "Standing leg softened while the feet were passing.",
@@ -73,25 +85,16 @@ FAULT_DETAILS = {
         "error": "Passing leg stayed too straight.",
         "suggestion": "Let the knee flex as the legs pass.",
     },
-    "EARLY_LOCK_STUMPING": {
-        "severity": "Medium",
-        "error": "Leg locked straight before the foot finished moving.",
-        "suggestion": "Delay straightening until the foot is about to settle.",
-    },
-    "SOFT_KNEE_ARRIVAL": {
-        "severity": "High",
-        "error": "Knee was soft at arrival.",
-        "suggestion": "Straighten the arriving leg as weight transfers onto it.",
-    },
     "BUCKLED_STANDING_LEG": {
         "severity": "Medium",
         "error": "Standing leg buckled after arrival.",
         "suggestion": "Keep the supporting knee lifted and straight.",
     },
-    "WEIGHT_TRANSFER_WITH_MOVING_FOOT": {
-        "severity": "High",
-        "error": "Weight transferred while the foot was still moving.",
-        "suggestion": "Let the foot finish traveling before committing weight.",
+
+    "EARLY_LOCK_STUMPING": {
+        "severity": "Low",
+        "error": "Leg locked straight before the foot finished moving.",
+        "suggestion": "Delay straightening until the foot is about to settle.",
     },
 }
 
@@ -949,13 +952,15 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
     logger.info(f"Knee angle indices: L={left_knee_angle_idx}, R={right_knee_angle_idx}")
 
     ankle_velocities = velocities[:, [left_ankle_jidx, right_ankle_jidx], :]
-    knee_angles = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
+    knee_angles_raw = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
 
     # ========================================================================
     # Step 3: Detect walking direction and apply hyperextension clamping
     # ========================================================================
     walking_direction = detect_walking_direction_2d(pose_data_2d, window_size=5)
-    knee_angles = apply_hyperextension_clamping_2d(knee_angles, pose_data_2d, walking_direction)
+    knee_angles = apply_hyperextension_clamping_2d(knee_angles_raw, pose_data_2d, walking_direction)
+    # knee_angles_raw retains pre-clamp values for debug output
+    hyperext_adjusted = knee_angles != knee_angles_raw  # (frames, 2) bool mask
 
     logger.info("Applied hyperextension clamping to knee angles")
 
@@ -989,11 +994,20 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
         active_ankle_velocity_x = smoothed_ankle_speed_x_2d[f_idx, current_moving_leg]
 
         # TEMP DEBUG: log X-axis velocities for threshold calibration
-        """
+        raw_standing_deg = np.rad2deg(knee_angles_raw[f_idx, current_standing_leg])
+        raw_active_deg   = np.rad2deg(knee_angles_raw[f_idx, current_moving_leg])
+        standing_hyperext = hyperext_adjusted[f_idx, current_standing_leg]
+        active_hyperext   = hyperext_adjusted[f_idx, current_moving_leg]
+        hyperext_tag = (
+            f"  hyperext=[standing={'YES' if standing_hyperext else 'no'}"
+            f"({raw_standing_deg:.1f}°->{np.rad2deg(standing_knee_angle):.1f}°)"
+            f" active={'YES' if active_hyperext else 'no'}"
+            f"({raw_active_deg:.1f}°->{np.rad2deg(active_knee_angle):.1f}°)]"
+        )
         print(f"[DEBUG] f={f_idx:03d} state={current_state.name:<10} "
               f"standing_x={standing_ankle_velocity_x:+7.3f}  active_x={active_ankle_velocity_x:+7.3f}  "
-              f"threshold={thresholds.velocity_threshold:.3f}")
-        """
+              f"threshold={thresholds.velocity_threshold:.3f}{hyperext_tag}")
+        
 
         # Use X-axis only for weight transfer (horizontal alignment in side view)
         active_ankle_hip_offset = abs(weight_transfer[f_idx, current_moving_leg, 0])
@@ -1054,8 +1068,8 @@ def analyze_cha_cha_walk_2d(pose_data_2d: VectorizedPoseData, fps: float = 60.0)
             if is_confident:
                 # CHECK 3: Standing leg softens (dropped height)
                 if standing_knee_angle < thresholds.straight_leg_min:
-                    #print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
-                    #print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - standing_knee={np.rad2deg(standing_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
+                    print(f"Frame {f_idx}: DROPPED_HEIGHT - active_knee={np.rad2deg(active_knee_angle):.1f}° (min={np.rad2deg(thresholds.straight_leg_min):.1f}°)")
 
                     faults.append(
                         build_fault_entry(

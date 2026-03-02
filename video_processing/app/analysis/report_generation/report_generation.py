@@ -314,7 +314,7 @@ def _score_segments(
             segment_scores[idx] = "Correct"
             continue
         max_error = max(error_values)
-        if max_error <= 10:
+        if max_error <= 8:
             segment_scores[idx] = "Close"
         else:
             segment_scores[idx] = "Incorrect"
@@ -358,7 +358,7 @@ def _score_walks(walk_segments: List[Tuple[int, int]], faults: List[Dict[str, An
             walk_scores[idx] = "Correct"
             continue
         max_error = max(error_values)
-        if max_error <= 10:
+        if max_error <= 8:
             walk_scores[idx] = "Close"
         else:
             walk_scores[idx] = "Incorrect"
