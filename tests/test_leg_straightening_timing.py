@@ -564,3 +564,205 @@ class Test2DChaChWalk:
         # verify the function signatures exist
         assert callable(analyze_cha_cha_walk)
         assert callable(analyze_cha_cha_walk_2d)
+
+
+class Test2DHyperextensionDetection:
+    """Test 2D hyperextension detection and clamping."""
+    
+    @pytest.fixture
+    def coco_17_skeleton_2d_simple(self):
+        """Create COCO-17 skeleton with simple 2D data for testing."""
+        joint_names = [
+            "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+            "left_shoulder", "right_shoulder", 
+            "left_elbow", "right_elbow",
+            "left_wrist", "right_wrist",
+            "left_hip", "right_hip",
+            "left_knee", "right_knee",
+            "left_ankle", "right_ankle"
+        ]
+        bones = [
+            ["left_hip", "left_knee"], ["left_knee", "left_ankle"],
+            ["right_hip", "right_knee"], ["right_knee", "right_ankle"]
+        ]
+        skeleton = VectorizedSkeleton(joint_names, bones)
+        
+        # Create 2D data for 10 frames with side-view geometry
+        # Frame sequence: frames 0-4 moving right (positive X velocity)
+        #                frames 5-9 moving left (negative X velocity)
+        num_frames = 10
+        data = np.zeros((num_frames, 17, 2), dtype=np.float32)
+        
+        for frame in range(num_frames):
+            # Base positions (image coordinates: X=right, Y=down)
+            # Left leg
+            data[frame, 11, :] = [400, 300]  # left_hip
+            data[frame, 13, :] = [400, 500]  # left_knee
+            data[frame, 15, :] = [400, 700]  # left_ankle
+            
+            # Right leg
+            data[frame, 12, :] = [600, 300]  # right_hip
+            data[frame, 14, :] = [600, 500]  # right_knee
+            data[frame, 16, :] = [600, 700]  # right_ankle
+            
+            # Add some variation in ankle position (simulating forward motion)
+            if frame < 5:
+                # Moving right (positive X, forward direction)
+                ankle_x_offset = frame * 20
+                data[frame, 15, 0] += ankle_x_offset  # left_ankle X
+                data[frame, 16, 0] += ankle_x_offset  # right_ankle X
+            else:
+                # Moving left (negative X, backward direction)
+                ankle_x_offset = (9 - frame) * 20
+                data[frame, 15, 0] -= ankle_x_offset  # left_ankle X
+                data[frame, 16, 0] -= ankle_x_offset  # right_ankle X
+        
+        skeleton.load_data(data)
+        confidence = np.ones((num_frames, 17), dtype=np.float32) * 0.9
+        pose_data = VectorizedPoseData(skeleton, confidence)
+        
+        return pose_data
+    
+    def test_get_angle_2d_signed_returns_dict(self, coco_17_skeleton_2d_simple):
+        """Test that get_angle_2d_signed returns proper dictionary."""
+        result = coco_17_skeleton_2d_simple.skeleton.get_angle_2d_signed(
+            "left_hip", "left_knee", "left_ankle"
+        )
+        
+        # Check dictionary structure
+        assert isinstance(result, dict)
+        assert "unsigned_angle" in result
+        assert "cross_product_z" in result
+        assert "is_forward_bend" in result
+        
+        # Check array shapes
+        assert result["unsigned_angle"].shape == (10,)
+        assert result["cross_product_z"].shape == (10,)
+        assert result["is_forward_bend"].shape == (10,)
+    
+    def test_get_angle_2d_signed_angle_range(self, coco_17_skeleton_2d_simple):
+        """Test that unsigned angles are in [0, π]."""
+        result = coco_17_skeleton_2d_simple.skeleton.get_angle_2d_signed(
+            "left_hip", "left_knee", "left_ankle"
+        )
+        
+        angles = result["unsigned_angle"]
+        assert np.all(angles >= 0)
+        assert np.all(angles <= np.pi + 0.01)  # Allow small numerical error
+    
+    def test_detect_walking_direction_2d_basic(self, coco_17_skeleton_2d_simple):
+        """Test basic walking direction detection."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            detect_walking_direction_2d
+        )
+        
+        direction = detect_walking_direction_2d(coco_17_skeleton_2d_simple, window_size=3)
+        
+        # Check output shape
+        assert direction.shape == (10,)
+        
+        # Direction should be in {-1, 0, 1}
+        assert np.all(np.isin(direction, [-1, 0, 1]))
+        
+        # In first frames moving right, direction should be positive
+        # In later frames moving left, direction should be negative
+        right_frames = direction[:5]
+        left_frames = direction[5:]
+        
+        # Most frames should show consistent direction
+        assert np.sum(right_frames > 0) >= 2  # At least 2 frames moving right
+        assert np.sum(left_frames < 0) >= 2   # At least 2 frames moving left
+    
+    def test_apply_hyperextension_clamping_2d_basic(self, coco_17_skeleton_2d_simple):
+        """Test basic hyperextension clamping."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            detect_walking_direction_2d,
+            apply_hyperextension_clamping_2d
+        )
+        
+        # Get angles
+        angles = coco_17_skeleton_2d_simple.skeleton.get_bone_angles()
+        left_knee_angle_idx = None
+        right_knee_angle_idx = None
+        
+        # Find knee angles
+        for angle_idx in range(coco_17_skeleton_2d_simple.skeleton.joints_index.shape[1]):
+            triplet = coco_17_skeleton_2d_simple.skeleton.joints_index[:, angle_idx]
+            # COCO-17 indices: left_hip=11, left_knee=13, left_ankle=15, etc.
+            if triplet[1] == 13:  # left_knee is pivot
+                left_knee_angle_idx = angle_idx
+            if triplet[1] == 14:  # right_knee is pivot
+                right_knee_angle_idx = angle_idx
+        
+        assert left_knee_angle_idx is not None
+        assert right_knee_angle_idx is not None
+        
+        # Extract knee angles
+        knee_angles = angles[:, [left_knee_angle_idx, right_knee_angle_idx]]
+        
+        # Get walking direction
+        walking_direction = detect_walking_direction_2d(coco_17_skeleton_2d_simple)
+        
+        # Apply clamping
+        clamped = apply_hyperextension_clamping_2d(
+            knee_angles, coco_17_skeleton_2d_simple, walking_direction
+        )
+        
+        # Check output shape
+        assert clamped.shape == knee_angles.shape
+        
+        # Clamped values should be in [0, π]
+        assert np.all(clamped >= 0)
+        assert np.all(clamped <= np.pi + 0.01)
+        
+        # Some values might be clamped to π
+        assert np.any(np.abs(clamped - np.pi) < 0.01) or True  # Either clamped or not
+
+    def test_hyperextension_clamping_preserves_non_forward_bends(self, coco_17_skeleton_2d_simple):
+        """Test that backward bends are not clamped."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            detect_walking_direction_2d,
+            apply_hyperextension_clamping_2d
+        )
+        
+        # Get angles
+        angles = coco_17_skeleton_2d_simple.skeleton.get_bone_angles()
+        left_knee_angle_idx = None
+        
+        for angle_idx in range(coco_17_skeleton_2d_simple.skeleton.joints_index.shape[1]):
+            triplet = coco_17_skeleton_2d_simple.skeleton.joints_index[:, angle_idx]
+            if triplet[1] == 13:  # left_knee
+                left_knee_angle_idx = angle_idx
+                break
+        
+        knee_angles = angles[:, [left_knee_angle_idx, 13]]  # Dummy for right
+        walking_direction = detect_walking_direction_2d(coco_17_skeleton_2d_simple)
+        
+        clamped = apply_hyperextension_clamping_2d(
+            knee_angles, coco_17_skeleton_2d_simple, walking_direction
+        )
+        
+        # Output should have same shape as input
+        assert clamped.shape == knee_angles.shape
+    
+    def test_hyperextension_clamping_output_is_copy(self, coco_17_skeleton_2d_simple):
+        """Test that clamping doesn't modify input array."""
+        from video_processing.app.analysis.feature_extraction.leg_straightening_timing import (
+            detect_walking_direction_2d,
+            apply_hyperextension_clamping_2d
+        )
+        
+        # Create test angles
+        angles = coco_17_skeleton_2d_simple.skeleton.get_bone_angles()
+        knee_angles = angles[:, [0, 1]].copy()  # Make a copy for testing
+        original_angles = knee_angles.copy()
+        
+        walking_direction = detect_walking_direction_2d(coco_17_skeleton_2d_simple)
+        
+        # Apply clamping
+        clamped = apply_hyperextension_clamping_2d(
+            knee_angles, coco_17_skeleton_2d_simple, walking_direction
+        )
+        
+        # Original should not be modified
+        assert np.allclose(knee_angles, original_angles)

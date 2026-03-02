@@ -9,15 +9,30 @@ import numpy as np
 from shared.skeletons.skeleton_registry import SkeletonRegistry
 from shared.skeletons.skeleton import VectorizedSkeleton
 from shared.skeletons.pose_data import VectorizedPoseData
-from ..pose_estimation.pose_estimation_motionbert import pose_estimation
 
 logger = logging.getLogger(__name__)
 
 # Define skeleton config paths
-_DEFAULT_CONFIG_DIRS = [
-    Path("/workspace/shared/configs/skeletons"),
-    Path(__file__).resolve().parents[4] / "configs" / "skeletons",
-]
+# Try multiple locations to support both Docker and local offline environments
+def _get_config_dirs():
+    """Build list of possible config directories, safely handling parent access."""
+    dirs = [Path("/workspace/shared/configs/skeletons")]  # Docker container path
+    
+    # Local paths - safely try different parent levels
+    file_path = Path(__file__).resolve()
+    parents = file_path.parents
+    
+    # Try parents[4] first (standard project root)
+    if len(parents) > 4:
+        dirs.append(parents[4] / "shared" / "configs" / "skeletons")
+    
+    # Try parents[3] as fallback (alternative structure)
+    if len(parents) > 3:
+        dirs.append(parents[3] / "shared" / "configs" / "skeletons")
+    
+    return dirs
+
+_DEFAULT_CONFIG_DIRS = _get_config_dirs()
 SKELETON_CONFIGS_DIR = next((p for p in _DEFAULT_CONFIG_DIRS if p.exists()), _DEFAULT_CONFIG_DIRS[0])
 
 
@@ -141,6 +156,10 @@ def run_pose_estimation_pipeline(
         elif local_video_path and local_video_path.exists():
             # Generate keypoints from video
             logger.info(f"Generating keypoints from video: {local_video_path}")
+            
+            # Lazy import - only needed when processing video (requires GPU dependencies)
+            from ..pose_estimation.pose_estimation_motionbert import pose_estimation
+            
             keypoints_2d_raw, keypoints_3d_raw, _ = pose_estimation(local_video_path, apply_smoothing=True)
             
             # Load skeleton configurations (COCO format for 2D, H36M for 3D)

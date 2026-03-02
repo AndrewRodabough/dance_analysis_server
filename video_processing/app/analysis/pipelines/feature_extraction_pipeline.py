@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 def run_feature_extraction_pipeline(
     pose_data_2d,
     pose_data_3d,
+    fps: float = 60.0,
 ) -> Dict:
     """
     Stage 2: Feature Extraction Pipeline
@@ -23,7 +24,8 @@ def run_feature_extraction_pipeline(
     Args:
         pose_data_2d: VectorizedPoseData object with 2D pose from Stage 1
         pose_data_3d: VectorizedPoseData object with 3D pose from Stage 1
-        temp_dir: Optional temporary directory for saving intermediate files
+        fps: Frame rate in frames per second (default 60). Used for velocity 
+             threshold normalization in 2D analysis.
         
     Returns:
         Dictionary containing:
@@ -32,7 +34,7 @@ def run_feature_extraction_pipeline(
             - pose_data_3d: Reference to the 3D pose data
             - features_path: Path to saved features.json (if temp_dir provided)
     """
-    logger.info(f"[STAGE 2] Feature Extraction Pipeline: Analyzing pose data")
+    logger.info(f"[STAGE 2] Feature Extraction Pipeline: Analyzing pose data (fps={fps})")
     
     try:
         # Validate input types
@@ -46,7 +48,7 @@ def run_feature_extraction_pipeline(
         
         # Step 1: Extract Features from 2D pose data (side-view analysis)
         logger.info("Extracting features from 2D pose data (side-view)")
-        features = extract_features(pose_data_2d=pose_data_2d, use_2d_analysis=True)
+        features = extract_features(pose_data_2d=pose_data_2d, use_2d_analysis=True, fps=fps)
         logger.info(f"✓ Features extracted from {pose_data_2d.num_frames} frames")
                 
         logger.info(f"[STAGE 2] ✓ Feature extraction complete")

@@ -111,17 +111,19 @@ class VectorizedPoseData:
         
         return result
 
-    def get_weighted_joint_velocities(self, threshold: float = 0.5) -> np.ndarray:
+    def get_weighted_joint_velocities(self, threshold: float = 0.5, fps: float = None) -> np.ndarray:
         """
         Get joint velocities, masking out joints with low confidence.
         
         Args:
             threshold: Minimum confidence for the joint
+            fps: Frames per second for FPS normalization (optional). If provided,
+                 velocities are normalized to a 60 FPS baseline.
             
         Returns:
             Joint velocities array, NaN where confidence is too low
         """
-        velocities = self.skeleton.get_joint_velocities()
+        velocities = self.skeleton.get_joint_velocities(fps=fps)
         valid_mask = self.confidence >= threshold
         
         result = velocities.copy()
