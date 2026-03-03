@@ -81,21 +81,39 @@ def process_job(
         results = run_analysis_pipeline(
             local_video_path=local_video_path,
             visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4",
+            keypoints_2d_output_path=Path("/workspace/outputs") / job_id / "keypoints_2d.json",
+            keypoints_3d_output_path=Path("/workspace/outputs") / job_id / "keypoints_3d.json",
             update_status=update_status,
         )
 
-        # Upload results to S3 and DB
+        # Upload results to S3
         update_status('Uploading Results', 95)
-        # TODO: Implement upload logic
+
+        report = results.get('stage3_result', {}).get('report')
+        report_s3_key = None
+
+        if report is not None:
+            report_json = json.dumps(report, indent=4)
+            report_s3_key = f"results/{job_id}/report.json"
+            s3_client.put_object(
+                Bucket=S3_BUCKET,
+                Key=report_s3_key,
+                Body=report_json.encode('utf-8'),
+                ContentType='application/json',
+            )
+            logger.info(f"[{job_id}] Report uploaded to s3://{S3_BUCKET}/{report_s3_key}")
+        else:
+            logger.warning(f"[{job_id}] No report found in pipeline results — skipping S3 upload")
 
         # Cleanup
         if local_video_path.exists():
             local_video_path.unlink()
 
         update_status('Complete', 100)
-        
+
         return {
             'status': 'success',
+            'report_s3_key': report_s3_key,
         }
 
     except Exception as e:

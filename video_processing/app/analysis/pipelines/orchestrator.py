@@ -2,6 +2,7 @@
 
 import logging
 import tempfile
+import json
 from pathlib import Path
 from typing import Callable, Dict, Optional, Any
 
@@ -17,6 +18,8 @@ def run_analysis_pipeline(
     local_keypoints_3d_path: Optional[Path] = None,
     local_video_path: Optional[Path] = None,
     visualization_video_path: Optional[Path] = None,
+    keypoints_2d_output_path: Optional[Path] = None,
+    keypoints_3d_output_path: Optional[Path] = None,
     update_status: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
     """
@@ -27,23 +30,20 @@ def run_analysis_pipeline(
     2. Feature Extraction Pipeline - Analyze pose and calculate metrics from skeleton objects
     3. Report Generation Pipeline - Create reports and upload results
     
-    Automatically handles skeleton conversion using coco_w (2D) and human_17 (3D) formats.
+    Automatically handles skeleton conversion using coco_17 (2D) and human_17 (3D) formats.
     
     Args:
-        job_id: Unique job identifier
-        s3_bucket: S3 bucket name
-        s3_client: Boto3 S3 client
         local_keypoints_2d_path: Path to 2D keypoints JSON
         local_keypoints_3d_path: Path to 3D keypoints JSON
         local_video_path: Optional path to video file for keypoint generation
         visualization_video_path: Optional path to visualization video file
-        redis_connection: Optional Redis connection for fetching job. If provided, will fetch
-                         job from job_id. If not provided, job progress tracking is disabled.
+        keypoints_2d_output_path: Optional path to save 2D keypoints JSON after processing
+        keypoints_3d_output_path: Optional path to save 3D keypoints JSON after processing
+        update_status: Optional callback function(status: str, progress: int) for progress tracking
         
     Returns:
         Dictionary with complete analysis results including:
             - status: 'success' or error state
-            - job_id: Job identifier
             - stage1_result: Pose estimation result with VectorizedPoseData objects
             - stage2_result: Feature extraction result
             - stage3_result: Report generation result
@@ -69,6 +69,23 @@ def run_analysis_pipeline(
             pose_data_2d = stage1_result['pose_data_2d']
             pose_data_3d = stage1_result['pose_data_3d']
             
+            # Save keypoints if output paths provided
+            if keypoints_2d_output_path:
+                keypoints_2d_output_path = Path(keypoints_2d_output_path)
+                keypoints_2d_output_path.parent.mkdir(parents=True, exist_ok=True)
+                keypoints_2d_json = pose_data_2d.skeleton.data.tolist()
+                with open(keypoints_2d_output_path, 'w') as f:
+                    json.dump(keypoints_2d_json, f)
+                logger.info(f"Saved 2D keypoints to {keypoints_2d_output_path}")
+            
+            if keypoints_3d_output_path:
+                keypoints_3d_output_path = Path(keypoints_3d_output_path)
+                keypoints_3d_output_path.parent.mkdir(parents=True, exist_ok=True)
+                keypoints_3d_json = pose_data_3d.skeleton.data.tolist()
+                with open(keypoints_3d_output_path, 'w') as f:
+                    json.dump(keypoints_3d_json, f)
+                logger.info(f"Saved 3D keypoints to {keypoints_3d_output_path}")
+            
             # ============================================================================
             # STAGE 2: Feature Extraction Pipeline
             # ============================================================================
@@ -90,8 +107,9 @@ def run_analysis_pipeline(
             stage3_result = run_report_generation_pipeline(
                 pose_data_2d,
                 pose_data_3d,
+                stage2_result,
                 local_video_path=local_video_path,
-                visualization_video_path=visualization_video_path
+                visualization_video_path=visualization_video_path,
             )
             
             # ============================================================================

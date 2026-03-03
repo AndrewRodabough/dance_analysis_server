@@ -494,3 +494,195 @@ class TestJointVelocities:
         assert np.allclose(velocities[1, 1], expected_vel_1_joint2)
         assert np.allclose(velocities[2, 0], expected_vel_2_joint1)
         assert np.allclose(velocities[2, 1], expected_vel_2_joint2)
+
+
+class Test2DSignedAngle:
+    """Test 2D signed angle calculations for hyperextension detection."""
+
+    def test_get_angle_2d_signed_returns_dict(self):
+        """Test that get_angle_2d_signed returns proper dictionary."""
+        joint_names = ["hip", "knee", "ankle"]
+        bones = [("hip", "knee"), ("knee", "ankle")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # 2D data (only X, Y)
+        data = np.array([
+            [[0, 0], [1, 0], [2, 0]],  # Straight line
+            [[0, 0], [1, 1], [2, 0]],  # Bent forward
+            [[0, 0], [1, -1], [2, 0]]  # Bent backward
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("hip", "knee", "ankle")
+        
+        # Check dictionary structure
+        assert isinstance(result, dict)
+        assert "unsigned_angle" in result
+        assert "cross_product_z" in result
+        assert "is_forward_bend" in result
+        
+        # Check array shapes
+        assert result["unsigned_angle"].shape == (3,)
+        assert result["cross_product_z"].shape == (3,)
+        assert result["is_forward_bend"].shape == (3,)
+        
+        # Check data types
+        assert result["unsigned_angle"].dtype == np.float32
+        assert result["cross_product_z"].dtype == np.float32
+        assert result["is_forward_bend"].dtype == bool
+
+    def test_get_angle_2d_signed_angle_range(self):
+        """Test that unsigned angles are in [0, π]."""
+        joint_names = ["hip", "knee", "ankle"]
+        bones = [("hip", "knee"), ("knee", "ankle")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Various knee configurations
+        data = np.array([
+            [[0, 0], [1, 0], [2, 0]],      # Straight (π)
+            [[0, 0], [1, 1], [2, 0]],      # Bent down-back (~π/2)
+            [[0, 0], [1, -1], [2, 0]],     # Bent up-back (~π/2)
+            [[0, 0], [0.5, 0.5], [1, 0]]   # Sharper bend
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("hip", "knee", "ankle")
+        angles = result["unsigned_angle"]
+        
+        # All angles should be in [0, π]
+        assert np.all(angles >= -0.01)  # Allow small numerical error
+        assert np.all(angles <= np.pi + 0.01)
+        
+        # Straight line should give π
+        np.testing.assert_almost_equal(angles[0], np.pi, decimal=4)
+
+    def test_get_angle_2d_signed_bend_direction_forward(self):
+        """Test that forward bends are correctly identified."""
+        joint_names = ["hip", "knee", "ankle"]
+        bones = [("hip", "knee"), ("knee", "ankle")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Bent forward: hip at (0,0), knee at (1, -1) (bends down), ankle at (2, 0)
+        # In image coordinates (Y down), this is a forward lean/hyperextension
+        data = np.array([
+            [[0, 0], [1, -0.5], [2, 0]],  # Forward bend
+            [[0, 0], [1, 0.5], [2, 0]]    # Backward bend
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("hip", "knee", "ankle")
+        
+        # The forward bent frame should have specific cross product sign
+        # cross(hip->knee, ankle->knee) should be negative for forward bend
+        forward_cross = result["cross_product_z"][0]
+        backward_cross = result["cross_product_z"][1]
+        
+        # They should have different signs
+        assert forward_cross * backward_cross < 0  # Different signs
+        
+        # Forward bend should have is_forward_bend = True
+        assert result["is_forward_bend"][0] == True
+        assert result["is_forward_bend"][1] == False
+
+    def test_get_angle_2d_signed_by_side_view_convention(self):
+        """Test 2D signed angle with side-view knee bend convention."""
+        joint_names = ["hip", "knee", "ankle"]
+        bones = [("hip", "knee"), ("knee", "ankle")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # In side view with image coordinates (X=right, Y=down, up=-Y):
+        # Forward bend: Hip at (0, 300), Knee moves forward-down at (150, 400), Ankle at (200, 300)
+        # Backward bend: Hip at (0, 300), Knee moves back-up at (50, 200), Ankle at (200, 300)
+        
+        data_forward = np.array([
+            [[0, 300], [150, 400], [200, 300]],   # Forward bend (knee outward/forward)
+            [[0, 300], [50, 200], [200, 300]]     # Backward bend (knee back/up)
+        ], dtype=np.float32)
+        skel.load_data(data_forward)
+        
+        result = skel.get_angle_2d_signed("hip", "knee", "ankle")
+        
+        # Verify direction detection - they should differ
+        forward_is_forward = result["is_forward_bend"][0]
+        backward_is_forward = result["is_forward_bend"][1]
+        
+        # They should be opposite (one is forward, one is backward)
+        assert forward_is_forward != backward_is_forward
+
+    def test_get_angle_2d_signed_straight_line(self):
+        """Test 2D signed angle with perfectly straight line (π angle)."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Perfectly collinear points
+        data = np.array([
+            [[0, 0], [1, 0], [2, 0]],      # Horizontal line
+            [[0, 0], [0, 1], [0, 2]],      # Vertical line
+            [[0, 0], [1, 1], [2, 2]]       # Diagonal line
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("a", "b", "c")
+        angles = result["unsigned_angle"]
+        
+        # All should be close to π (with relaxed tolerance for floating point)
+        for angle in angles:
+            np.testing.assert_almost_equal(angle, np.pi, decimal=3)
+
+    def test_get_angle_2d_signed_right_angle(self):
+        """Test 2D signed angle with right angle."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Right angle: (0,0), (1,0), (1,1)
+        data = np.array([[[0, 0], [1, 0], [1, 1]]], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("a", "b", "c")
+        angle = result["unsigned_angle"][0]
+        
+        # Should be π/2
+        np.testing.assert_almost_equal(angle, np.pi / 2, decimal=4)
+
+    def test_get_angle_2d_signed_error_without_data(self):
+        """Test error when calling without loaded data."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        with pytest.raises(RuntimeError, match="No data loaded"):
+            skel.get_angle_2d_signed("a", "b", "c")
+
+    def test_get_angle_2d_signed_invalid_joint_names(self):
+        """Test error with invalid joint names."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        data = np.array([[[0, 0], [1, 0], [2, 0]]], dtype=np.float32)
+        skel.load_data(data)
+        
+        with pytest.raises(ValueError, match="Joint names not found"):
+            skel.get_angle_2d_signed("nonexistent", "b", "c")
+
+    def test_get_angle_2d_signed_2d_only_data(self):
+        """Test that get_angle_2d_signed works with 2D data (no Z channel)."""
+        joint_names = ["a", "b", "c"]
+        bones = [("a", "b"), ("b", "c")]
+        skel = VectorizedSkeleton(joint_names, bones)
+        
+        # Pure 2D data with 2 channels (X, Y)
+        data = np.array([
+            [[0, 0], [1, 0], [2, 0]],
+            [[0, 0], [1, 1], [2, 0]]
+        ], dtype=np.float32)
+        skel.load_data(data)
+        
+        result = skel.get_angle_2d_signed("a", "b", "c")
+        
+        # Should work fine with 2D-only data
+        assert result["unsigned_angle"].shape == (2,)
+        assert not np.any(np.isnan(result["unsigned_angle"]))
+        assert not np.any(np.isnan(result["cross_product_z"]))

@@ -130,10 +130,14 @@ class VectorizedSkeleton:
         
         return angles
 
-    def get_joint_velocities(self):
+    def get_joint_velocities(self, fps: float = None):
         """
         Get velocities of all joints across all frames.
         Velocity is calculated as the change in position between consecutive frames.
+        
+        Args:
+            fps: Frames per second for FPS normalization. If provided, velocities are 
+                 scaled to be independent of frame rate. Default is None (raw pixel/meter differences).
         
         Returns:
             Numpy array of shape (Frames, Joints, Channels) with joint velocities.
@@ -158,14 +162,22 @@ class VectorizedSkeleton:
         # Approximate frame 0 velocity using frame 1 velocity
         velocities[0] = velocities[1]
         
+        # Apply FPS normalization if provided
+        if fps is not None and fps > 0:
+            # Normalize to 60 FPS baseline (current calibration was done at 60 FPS)
+            fps_normalization_factor = 60.0 / fps
+            velocities = velocities * fps_normalization_factor
+        
         return velocities
 
-    def get_joint_velocity(self, joint_name: str):
+    def get_joint_velocity(self, joint_name: str, fps: float = None):
         """
         Get velocity of a specific joint across all frames.
         
         Args:
             joint_name: Name of the joint
+            fps: Frames per second for FPS normalization. If provided, velocities are 
+                 scaled to be independent of frame rate. Default is None (raw differences).
             
         Returns:
             Numpy array of shape (Frames, Channels) with joint velocity.
@@ -194,6 +206,12 @@ class VectorizedSkeleton:
         
         # Approximate frame 0 velocity using frame 1 velocity
         velocity[0] = velocity[1]
+        
+        # Apply FPS normalization if provided
+        if fps is not None and fps > 0:
+            # Normalize to 60 FPS baseline
+            fps_normalization_factor = 60.0 / fps
+            velocity = velocity * fps_normalization_factor
         
         return velocity
 
@@ -276,3 +294,74 @@ class VectorizedSkeleton:
         
         # Compute angle in radians
         return np.arccos(dot_product)
+
+    def get_angle_2d_signed(self, start_name: str, pivot_name: str, end_name: str):
+        """
+        Get the SIGNED angle at a knee joint in 2D (side view). 
+        Uses cross product to determine bend direction.
+        
+        In image coordinates (X=right, Y=down, with up=-Y for analysis):
+        - Positive cross product (counter-clockwise from hip to ankle) = backward lean/bend
+        - Negative cross product (clockwise from hip to ankle) = forward lean/hyperextension
+        
+        Args:
+            start_name: Name of the first joint (hip)
+            pivot_name: Name of the pivot joint (knee)
+            end_name: Name of the third joint (ankle)
+            
+        Returns:
+            Dictionary with keys:
+                - "unsigned_angle": angle in radians [0, π]
+                - "cross_product_z": Z component of 2D cross product (sign indicates direction)
+                - "is_forward_bend": bool, True if bending forward (hyperextension tendency)
+        """
+        if self.data is None:
+            raise RuntimeError("No data loaded!")
+        
+        # Get joint indices
+        if (start_name not in self.name_to_idx or 
+            pivot_name not in self.name_to_idx or 
+            end_name not in self.name_to_idx):
+            raise ValueError(f"Joint names not found: {start_name}, {pivot_name}, {end_name}")
+        
+        start_idx = self.name_to_idx[start_name]
+        pivot_idx = self.name_to_idx[pivot_name]
+        end_idx = self.name_to_idx[end_name]
+        
+        # Extract joint positions (only first 2 channels for 2D)
+        start_pos = self.data[:, start_idx, :2]  # Shape: (Frames, 2)
+        pivot_pos = self.data[:, pivot_idx, :2]  # Shape: (Frames, 2)
+        end_pos = self.data[:, end_idx, :2]      # Shape: (Frames, 2)
+        
+        # Compute vectors from pivot to start and pivot to end
+        vec_a = start_pos - pivot_pos  # Hip->Knee in image coords
+        vec_b = end_pos - pivot_pos     # Ankle->Knee in image coords
+        
+        # Normalize vectors
+        norm_a = np.linalg.norm(vec_a, axis=1, keepdims=True)
+        norm_b = np.linalg.norm(vec_b, axis=1, keepdims=True)
+        
+        # Avoid division by zero
+        norm_a = np.where(norm_a == 0, 1, norm_a)
+        norm_b = np.where(norm_b == 0, 1, norm_b)
+        
+        vec_a_normalized = vec_a / norm_a
+        vec_b_normalized = vec_b / norm_b
+        
+        # Compute unsigned angle using dot product
+        dot_product = np.sum(vec_a_normalized * vec_b_normalized, axis=1)
+        dot_product = np.clip(dot_product, -1.0, 1.0)
+        unsigned_angle = np.arccos(dot_product)
+        
+        # Compute 2D cross product to determine bend direction
+        # In 2D: cross(vec_a, vec_b) = vec_a[0]*vec_b[1] - vec_a[1]*vec_b[0]
+        cross_product_z = vec_a[:, 0] * vec_b[:, 1] - vec_a[:, 1] * vec_b[:, 0]
+        
+        # Determine if bend is forward (negative cross product = clockwise = forward bend)
+        is_forward_bend = cross_product_z < 0
+        
+        return {
+            "unsigned_angle": unsigned_angle,
+            "cross_product_z": cross_product_z,
+            "is_forward_bend": is_forward_bend
+        }

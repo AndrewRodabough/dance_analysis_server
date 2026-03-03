@@ -6,6 +6,7 @@ __pycache__/
 # Large Media (Crucial!)
 video_processing/models/checkpoints/
 video_processing/temp/
+outputs/
 backend/test_outputs/
 
 *.mp4
