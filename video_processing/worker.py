@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 from logging_config import setup_logging, get_logger, log_job_status
-from database import get_db_session, get_next_pending_job, update_job_status
+from database import get_db_session, get_next_pending_job, update_job_status, update_job_progress
 from app.tasks import process_job
 
 # Configure structured JSON logging
@@ -31,10 +31,10 @@ def run_worker():
 
             if job:
                 job_id = job['job_id']
-                log_job_status(job_id, status="processing", stage="starting", filename=job['filename'])
+                log_job_status(job_id, status="processing", stage="starting", file_name=job['filename'])
 
                 # Mark as processing
-                update_job_status(db, job_id, "processing")
+                update_job_status(db, job_id, "processing", progress=0)
 
                 try:
                     # Process the job
@@ -70,7 +70,8 @@ def run_worker():
 
 
 def update_progress(db, job_id: str, progress: int):
-    """Update job progress (currently just logs, could store in DB if needed)."""
+    """Persist job progress to DB and emit structured log."""
+    update_job_progress(db, job_id, progress)
     log_job_status(job_id, status="processing", progress=progress)
 
 

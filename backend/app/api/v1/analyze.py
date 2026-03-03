@@ -383,6 +383,7 @@ async def get_analysis_status(
     response = {
         'job_id': job_id,
         'status': db_job.status.value,
+        'progress': db_job.progress or 0,
         'filename': db_job.filename,
         'created_at': db_job.created_at.isoformat() if db_job.created_at else None,
         'started_at': db_job.started_at.isoformat() if db_job.started_at else None,

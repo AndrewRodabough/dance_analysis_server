@@ -44,7 +44,8 @@ def get_next_pending_job(db):
 
 
 def update_job_status(db, job_id: str, status: str, error_message: str = None,
-                      result_path: str = None, data_path: str = None):
+                      result_path: str = None, data_path: str = None,
+                      progress: int = None):
     """Update job status in database."""
     from datetime import datetime
     now = datetime.utcnow()
@@ -52,14 +53,16 @@ def update_job_status(db, job_id: str, status: str, error_message: str = None,
     if status == "processing":
         db.execute(text("""
             UPDATE jobs
-            SET status = :status, started_at = :now
+            SET status = :status, started_at = COALESCE(started_at, :now),
+                progress = COALESCE(:progress, progress)
             WHERE job_id = :job_id
-        """), {"status": status, "now": now, "job_id": job_id})
-    elif status in ["completed", "failed"]:
+        """), {"status": status, "now": now, "job_id": job_id, "progress": progress})
+    elif status in ["completed", "failed", "failed_hidden"]:
         db.execute(text("""
             UPDATE jobs
             SET status = :status, completed_at = :now, error_message = :error,
-                result_path = :result_path, data_path = :data_path
+                result_path = :result_path, data_path = :data_path,
+                progress = CASE WHEN :status = 'completed' THEN 100 ELSE COALESCE(:progress, progress) END
             WHERE job_id = :job_id
         """), {
             "status": status,
@@ -67,13 +70,22 @@ def update_job_status(db, job_id: str, status: str, error_message: str = None,
             "error": error_message,
             "result_path": result_path,
             "data_path": data_path,
-            "job_id": job_id
+            "job_id": job_id,
+            "progress": progress
         })
     else:
         db.execute(text("""
             UPDATE jobs
-            SET status = :status
+            SET status = :status, progress = COALESCE(:progress, progress)
             WHERE job_id = :job_id
-        """), {"status": status, "job_id": job_id})
+        """), {"status": status, "job_id": job_id, "progress": progress})
 
+    db.commit()
+
+
+def update_job_progress(db, job_id: str, progress: int):
+    """Update job progress without changing status."""
+    db.execute(text("""
+        UPDATE jobs SET progress = :progress WHERE job_id = :job_id
+    """), {"progress": progress, "job_id": job_id})
     db.commit()

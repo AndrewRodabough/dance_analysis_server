@@ -15,6 +15,7 @@ class JobStatus(str, PyEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    FAILED_HIDDEN = "failed_hidden"  # Failed jobs hidden from frontend UI
 
 
 class Job(Base):
@@ -38,6 +39,9 @@ class Job(Base):
     result_path = Column(String(500))  # S3 path to result video
     data_path = Column(String(500))  # S3 path to JSON data
 
+    # Progress tracking (0-100)
+    progress = Column(Integer, default=0)
+
     # Error tracking
     error_message = Column(Text)
 
@@ -48,7 +52,6 @@ class Job(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
-
 
     # Relationship to User
     user = relationship("User", backref="jobs")
