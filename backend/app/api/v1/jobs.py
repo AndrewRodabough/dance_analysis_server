@@ -25,9 +25,12 @@ async def list_user_jobs(
     """
     Get all jobs for the current user.
 
-    - **status**: Optional filter by job status (pending, processing, completed, failed)
+    - **status**: Optional filter by job status (pending, processing, completed, failed, failed_hidden)
     - **limit**: Maximum results (1-100, default 50)
     - **offset**: Pagination offset (default 0)
+
+    Note: Jobs with status 'failed_hidden' are excluded by default.
+    Pass status=failed_hidden explicitly to view them.
     """
     jobs = JobService.get_user_jobs(
         db=db,

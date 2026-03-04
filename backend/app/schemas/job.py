@@ -18,6 +18,7 @@ class JobResponse(BaseModel):
     user_id: int
     status: JobStatus
     filename: str
+    progress: Optional[int] = 0
     video_path: Optional[str] = None
     result_path: Optional[str] = None
     data_path: Optional[str] = None
@@ -32,6 +33,7 @@ class JobResponse(BaseModel):
 class JobStatusUpdate(BaseModel):
     """Schema for updating job status."""
     status: JobStatus
+    progress: Optional[int] = None
     error_message: Optional[str] = None
     result_path: Optional[str] = None
     data_path: Optional[str] = None

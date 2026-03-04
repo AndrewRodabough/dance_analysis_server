@@ -106,7 +106,7 @@
           "auth"
         ],
         "summary": "Login",
-        "description": "Login and receive a JWT access token.\n\n- **email**: Registered email address\n- **password**: User password\n\nReturns a JWT token to be used in Authorization header as: `Bearer <token>`",
+        "description": "Login and receive a JWT access token.\n\n- **email**: Registered email address\n- **password**: User password\n\nReturns a JWT token to be used in Authorization header as: `Bearer <token>`\n\nSets a HTTP-only cookie containing the refresh token.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -169,13 +169,50 @@
         ]
       }
     },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "Logout the current user.\n\nThis clears the HTTP-only refresh token cookie so that the client\ncan discard any stored access token and treat the user as logged out.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh Token",
+        "description": "Refresh access token using a valid (non-expired) refresh token stored\nin an HTTP-only cookie.\n\nIf the refresh token is expired or invalid, returns 401 so the client\ncan log the user out and clears the refresh cookie.",
+        "operationId": "refresh_token_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
           "jobs"
         ],
         "summary": "List User Jobs",
-        "description": "Get all jobs for the current user.\n\n- **status**: Optional filter by job status (pending, processing, completed, failed)\n- **limit**: Maximum results (1-100, default 50)\n- **offset**: Pagination offset (default 0)",
+        "description": "Get all jobs for the current user.\n\n- **status**: Optional filter by job status (pending, processing, completed, failed, failed_hidden)\n- **limit**: Maximum results (1-100, default 50)\n- **offset**: Pagination offset (default 0)\n\nNote: Jobs with status 'failed_hidden' are excluded by default.\nPass status=failed_hidden explicitly to view them.",
         "operationId": "list_user_jobs_api_v1_jobs_get",
         "security": [
           {
@@ -351,7 +388,7 @@
           "analyze"
         ],
         "summary": "Request presigned upload URL",
-        "description": "Request a presigned URL for direct upload to S3.\n\nThis enables clients to upload videos directly to S3 without going through the API server,\nreducing server load and improving upload performance.\n\n**Steps:**\n1. Call this endpoint to get upload URL and job_id\n2. PUT the video file to the upload_url\n3. Call /analyze/confirm with the job_id to start processing\n\n**Args:**\n- filename: Name of the video file (e.g., \"dance_video.mp4\")\n- content_type: MIME type of the video (default: \"video/mp4\")\n\n**Returns:**\n- upload_url: Presigned URL to upload the video (valid for 15 minutes)\n- job_id: Unique identifier for tracking this analysis\n- s3_key: S3 object key where the file will be stored",
+        "description": "Request a presigned URL for direct upload to Cloudflare R2.\n\nThis enables clients to upload videos directly to R2 without going through the API server,\nreducing server load and improving upload performance. The server will later pull the\nvideo from R2 into local MinIO on confirm.\n\n**Steps:**\n1. Call this endpoint to get upload URL and job_id\n2. PUT the video file to the upload_url\n3. Call /analyze/confirm with the job_id to start processing\n\n**Args:**\n- filename: Name of the video file (e.g., \"dance_video.mp4\")\n- content_type: MIME type of the video (default: \"video/mp4\")\n\n**Returns:**\n- upload_url: Presigned URL to upload the video (valid for 15 minutes)\n- job_id: Unique identifier for tracking this analysis\n- s3_key: S3 object key where the file will be stored",
         "operationId": "request_upload_url_api_v1_analyze_upload_url_post",
         "security": [
           {
@@ -416,7 +453,7 @@
           "analyze"
         ],
         "summary": "Confirm upload and start analysis",
-        "description": "Confirm that a video has been uploaded to S3 and start the analysis pipeline.\n\nCall this endpoint after successfully uploading the video using the presigned URL\nfrom /analyze/upload-url.\n\n**Args:**\n- job_id: The job ID received from /analyze/upload-url\n- s3_key: The S3 key received from /analyze/upload-url\n\n**Returns:**\n- Job details and queuing status",
+        "description": "Confirm that a video has been uploaded to Cloudflare R2 and start the analysis pipeline.\n\nCall this endpoint after successfully uploading the video using the presigned URL\nfrom /analyze/upload-url. This will pull the video from R2 into local MinIO\nbefore queuing the job.\n\n**Args:**\n- job_id: The job ID received from /analyze/upload-url\n- s3_key: The S3 key received from /analyze/upload-url\n\n**Returns:**\n- Job details and queuing status",
         "operationId": "confirm_upload_and_start_analysis_api_v1_analyze_confirm_post",
         "security": [
           {
@@ -889,6 +926,48 @@
           }
         }
       }
+    },
+    "/api/v1/videos/{job_id}/report": {
+      "get": {
+        "tags": [
+          "videos",
+          "videos"
+        ],
+        "summary": "Get structured feedback report",
+        "description": "Return the structured feedback report for a given job as JSON.\n\nThis implementation:\n- Reads the JSON report from S3 (results/{job_id}/report.json)\n- Parses it into a Python object (dict/list)\n- Returns it directly so FastAPI can serialize it back to JSON\n\nNote: This is intentionally schema-less for now so we can iterate quickly\non the response format (Option 1). We can later introduce a Pydantic\nmodel as a response_model once the schema stabilizes.",
+        "operationId": "get_feedback_report_api_v1_videos__job_id__report_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -897,7 +976,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "description": "Video file (mp4, avi, mov)"
           }
@@ -941,6 +1020,18 @@
           "filename": {
             "type": "string",
             "title": "Filename"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "default": 0
           },
           "video_path": {
             "anyOf": [
@@ -1034,7 +1125,8 @@
           "pending",
           "processing",
           "completed",
-          "failed"
+          "failed",
+          "failed_hidden"
         ],
         "title": "JobStatus",
         "description": "Job status enumeration."
@@ -1049,6 +1141,17 @@
             "type": "string",
             "title": "Token Type",
             "default": "bearer"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
           }
         },
         "type": "object",

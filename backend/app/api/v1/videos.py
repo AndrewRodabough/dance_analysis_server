@@ -1,11 +1,14 @@
 """Video file serving endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import FileResponse
-from pathlib import Path
+import json
 import os
+from pathlib import Path
+from typing import Any, Dict
+
 import boto3
 from botocore.client import Config
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import FileResponse
 
 from app.core.logging import get_logger, log_storage_operation
 
@@ -94,3 +97,61 @@ async def download_feedback(job_id: str):
     """Download feedback text file"""
     url = _presign_and_log(job_id, f"results/{job_id}/feedback.txt", "Feedback")
     return {"url": url}
+
+
+@router.get(
+    "/{job_id}/report",
+    summary="Get structured feedback report",
+    response_model=Dict[str, Any],
+)
+async def get_feedback_report(job_id: str) -> Dict[str, Any]:
+    """
+    Return the structured feedback report for a given job as JSON.
+
+    This implementation:
+    - Reads the JSON report from S3 (results/{job_id}/report.json)
+    - Parses it into a Python object (dict/list)
+    - Returns it directly so FastAPI can serialize it back to JSON
+
+    Note: This is intentionally schema-less for now so we can iterate quickly
+    on the response format (Option 1). We can later introduce a Pydantic
+    model as a response_model once the schema stabilizes.
+    """
+    key = f"results/{job_id}/report.json"
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        body = obj.get("Body")
+        if body is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Report object missing body",
+            )
+        raw_bytes = body.read()
+    except s3_client.exceptions.NoSuchKey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feedback report not found for this job",
+        )
+    except Exception as e:
+        log_storage_operation(
+            operation="get_object",
+            provider="minio",
+            bucket=S3_BUCKET,
+            key=key,
+            job_id=job_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving feedback report",
+        )
+
+    try:
+        report = json.loads(raw_bytes.decode("utf-8"))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Stored feedback report is invalid JSON",
+        )
+
+    return report

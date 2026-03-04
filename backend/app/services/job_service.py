@@ -88,6 +88,9 @@ class JobService:
 
         if status:
             query = query.filter(Job.status == status)
+        else:
+            # By default, exclude hidden failed jobs from listing
+            query = query.filter(Job.status != JobStatus.FAILED_HIDDEN)
 
         return query.order_by(Job.created_at.desc()).limit(limit).offset(offset).all()
 
@@ -116,11 +119,19 @@ class JobService:
         # Update status
         job.status = status_update.status
 
+        # Update progress
+        if status_update.progress is not None:
+            job.progress = status_update.progress
+
         # Update timestamps based on status
         if status_update.status == JobStatus.PROCESSING and not job.started_at:
             job.started_at = datetime.utcnow()
-        elif status_update.status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+        elif status_update.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.FAILED_HIDDEN]:
             job.completed_at = datetime.utcnow()
+
+        # Set progress to 100 on completion
+        if status_update.status == JobStatus.COMPLETED:
+            job.progress = 100
 
         # Update optional fields
         if status_update.error_message:

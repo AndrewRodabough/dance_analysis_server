@@ -16,7 +16,7 @@ import logging
 import sys
 import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from pythonjsonlogger import jsonlogger
 
 
@@ -28,9 +28,9 @@ class WorkerJsonFormatter(jsonlogger.JsonFormatter):
 
     def add_fields(
         self,
-        log_record: dict[str, Any],
+        log_record: Dict[str, Any],
         record: logging.LogRecord,
-        message_dict: dict[str, Any],
+        message_dict: Dict[str, Any],
     ) -> None:
         super().add_fields(log_record, record, message_dict)
 
@@ -98,7 +98,7 @@ def log_job_status(
     """
     logger = logging.getLogger("job_status")
 
-    log_data: dict[str, Any] = {
+    log_data: Dict[str, Any] = {
         "event_type": "job_status",
         "job_id": job_id,
         "status": status,
@@ -144,7 +144,7 @@ def log_storage_operation(
     """
     logger = logging.getLogger("storage")
 
-    log_data: dict[str, Any] = {
+    log_data: Dict[str, Any] = {
         "event_type": "storage_operation",
         "operation": operation,
         "provider": provider,
