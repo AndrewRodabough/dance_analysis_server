@@ -8,10 +8,7 @@
   "paths": {
     "/api/v1/": {
       "get": {
-        "tags": [
-          "health",
-          "health"
-        ],
+        "tags": ["health", "health"],
         "summary": "Service status",
         "operationId": "read_root_api_v1__get",
         "responses": {
@@ -20,9 +17,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": { "type": "string" },
                   "type": "object",
                   "title": "Response Read Root Api V1  Get"
                 }
@@ -34,10 +29,7 @@
     },
     "/api/v1/health": {
       "get": {
-        "tags": [
-          "health",
-          "health"
-        ],
+        "tags": ["health", "health"],
         "summary": "Health check",
         "operationId": "health_api_v1_health_get",
         "responses": {
@@ -46,9 +38,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": { "type": "string" },
                   "type": "object",
                   "title": "Response Health Api V1 Health Get"
                 }
@@ -60,18 +50,14 @@
     },
     "/api/v1/auth/register": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Register User",
         "description": "Register a new user.\n\n- **email**: Valid email address (unique)\n- **username**: Username between 3-50 characters (unique)\n- **password**: Password at least 8 characters",
         "operationId": "register_user_api_v1_auth_register_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserCreate"
-              }
+              "schema": { "$ref": "#/components/schemas/UserCreate" }
             }
           },
           "required": true
@@ -81,9 +67,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/UserResponse" }
               }
             }
           },
@@ -91,9 +75,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -102,18 +84,14 @@
     },
     "/api/v1/auth/login": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Login",
         "description": "Login and receive a JWT access token.\n\n- **email**: Registered email address\n- **password**: User password\n\nReturns a JWT token to be used in Authorization header as: `Bearer <token>`\n\nSets a HTTP-only cookie containing the refresh token.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserLogin"
-              }
+              "schema": { "$ref": "#/components/schemas/UserLogin" }
             }
           },
           "required": true
@@ -123,9 +101,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Token"
-                }
+                "schema": { "$ref": "#/components/schemas/Token" }
               }
             }
           },
@@ -133,9 +109,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -144,9 +118,7 @@
     },
     "/api/v1/auth/me": {
       "get": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Get Current User Info",
         "description": "Get current authenticated user information.\n\nRequires: JWT token in Authorization header",
         "operationId": "get_current_user_info_api_v1_auth_me_get",
@@ -155,40 +127,26 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/UserResponse" }
               }
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "security": [{ "HTTPBearer": [] }]
       }
     },
     "/api/v1/auth/logout": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Logout",
         "description": "Logout the current user.\n\nThis clears the HTTP-only refresh token cookie so that the client\ncan discard any stored access token and treat the user as logged out.",
         "operationId": "logout_api_v1_auth_logout_post",
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          }
-        }
+        "responses": { "204": { "description": "Successful Response" } }
       }
     },
     "/api/v1/auth/refresh": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Refresh Token",
         "description": "Refresh access token using a valid (non-expired) refresh token stored\nin an HTTP-only cookie.\n\nIf the refresh token is expired or invalid, returns 401 so the client\ncan log the user out and clears the refresh cookie.",
         "operationId": "refresh_token_api_v1_auth_refresh_post",
@@ -197,9 +155,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Token"
-                }
+                "schema": { "$ref": "#/components/schemas/Token" }
               }
             }
           }
@@ -208,17 +164,11 @@
     },
     "/api/v1/jobs": {
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "List User Jobs",
         "description": "Get all jobs for the current user.\n\n- **status**: Optional filter by job status (pending, processing, completed, failed, failed_hidden)\n- **limit**: Maximum results (1-100, default 50)\n- **offset**: Pagination offset (default 0)\n\nNote: Jobs with status 'failed_hidden' are excluded by default.\nPass status=failed_hidden explicitly to view them.",
         "operationId": "list_user_jobs_api_v1_jobs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "status",
@@ -226,12 +176,8 @@
             "required": false,
             "schema": {
               "anyOf": [
-                {
-                  "$ref": "#/components/schemas/JobStatus"
-                },
-                {
-                  "type": "null"
-                }
+                { "$ref": "#/components/schemas/JobStatus" },
+                { "type": "null" }
               ],
               "description": "Filter by job status",
               "title": "Status"
@@ -273,9 +219,7 @@
               "application/json": {
                 "schema": {
                   "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobResponse"
-                  },
+                  "items": { "$ref": "#/components/schemas/JobResponse" },
                   "title": "Response List User Jobs Api V1 Jobs Get"
                 }
               }
@@ -285,9 +229,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -296,26 +238,17 @@
     },
     "/api/v1/jobs/{job_id}": {
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Get Job Details",
         "description": "Get details of a specific job.",
         "operationId": "get_job_details_api_v1_jobs__job_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
@@ -323,9 +256,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JobResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/JobResponse" }
               }
             }
           },
@@ -333,48 +264,33 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
         }
       },
       "delete": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Delete Job",
         "description": "Delete a job.\n\nNote: This will delete job metadata. Associated S3 files are also cleaned up.",
         "operationId": "delete_job_api_v1_jobs__job_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
+          "204": { "description": "Successful Response" },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -383,18 +299,11 @@
     },
     "/api/v1/analyze/upload-url": {
       "post": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Request presigned upload URL",
         "description": "Request a presigned URL for direct upload to Cloudflare R2.\n\nThis enables clients to upload videos directly to R2 without going through the API server,\nreducing server load and improving upload performance. The server will later pull the\nvideo from R2 into local MinIO on confirm.\n\n**Steps:**\n1. Call this endpoint to get upload URL and job_id\n2. PUT the video file to the upload_url\n3. Call /analyze/confirm with the job_id to start processing\n\n**Args:**\n- filename: Name of the video file (e.g., \"dance_video.mp4\")\n- content_type: MIME type of the video (default: \"video/mp4\")\n\n**Returns:**\n- upload_url: Presigned URL to upload the video (valid for 15 minutes)\n- job_id: Unique identifier for tracking this analysis\n- s3_key: S3 object key where the file will be stored",
         "operationId": "request_upload_url_api_v1_analyze_upload_url_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "filename",
@@ -437,9 +346,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -448,18 +355,11 @@
     },
     "/api/v1/analyze/confirm": {
       "post": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Confirm upload and start analysis",
         "description": "Confirm that a video has been uploaded to Cloudflare R2 and start the analysis pipeline.\n\nCall this endpoint after successfully uploading the video using the presigned URL\nfrom /analyze/upload-url. This will pull the video from R2 into local MinIO\nbefore queuing the job.\n\n**Args:**\n- job_id: The job ID received from /analyze/upload-url\n- s3_key: The S3 key received from /analyze/upload-url\n\n**Returns:**\n- Job details and queuing status",
         "operationId": "confirm_upload_and_start_analysis_api_v1_analyze_confirm_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
@@ -491,9 +391,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": { "type": "string" },
                   "title": "Response Confirm Upload And Start Analysis Api V1 Analyze Confirm Post"
                 }
               }
@@ -503,9 +401,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -514,10 +410,7 @@
     },
     "/api/v1/analyze": {
       "post": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Submit video for analysis (legacy)",
         "description": "Upload a dance video for pose estimation analysis.\n\n**DEPRECATED**: This endpoint uploads videos through the API server.\nFor better performance, use the direct upload flow:\n1. POST /analyze/upload-url to get presigned URL\n2. PUT video to the presigned URL\n3. POST /analyze/confirm to start processing\n\nThe video is uploaded to S3 and queued for processing.\nReturns a job_id to track analysis progress.\n\n**Supported formats**: MP4, AVI, MOV",
         "operationId": "submit_video_analysis_api_v1_analyze_post",
@@ -537,9 +430,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": { "type": "string" },
                   "type": "object",
                   "title": "Response Submit Video Analysis Api V1 Analyze Post"
                 }
@@ -550,43 +441,27 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "security": [{ "HTTPBearer": [] }]
       }
     },
     "/api/v1/analyze/{job_id}/status": {
       "get": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Check analysis status",
         "description": "Check the processing status of a video analysis job.\n\n**Possible statuses**:\n- `pending`: Job created, waiting to be queued\n- `processing`: Being processed by worker\n- `completed`: Complete and ready\n- `failed`: Error occurred",
         "operationId": "get_analysis_status_api_v1_analyze__job_id__status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
@@ -606,9 +481,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -617,27 +490,17 @@
     },
     "/api/v1/analyze/{job_id}/result": {
       "get": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Get analysis results",
         "description": "Get the complete results of a finished video analysis.\n\nReturns pose estimation data and links to download visualization video.",
         "operationId": "get_analysis_result_api_v1_analyze__job_id__result_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
@@ -657,9 +520,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -668,27 +529,17 @@
     },
     "/api/v1/analyze/{job_id}": {
       "delete": {
-        "tags": [
-          "analyze",
-          "analyze"
-        ],
+        "tags": ["analyze", "analyze"],
         "summary": "Delete job and results",
         "description": "Delete a job and all associated files from S3.\n\nUseful for cleaning up completed or failed jobs.",
         "operationId": "delete_job_api_v1_analyze__job_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
@@ -708,9 +559,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -719,10 +568,7 @@
     },
     "/api/v1/videos/{job_id}/visualization": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Download visualization video",
         "description": "Download the pose estimation visualization video",
         "operationId": "download_visualization_api_v1_videos__job_id__visualization_get",
@@ -731,28 +577,19 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "content": { "application/json": { "schema": {} } }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -761,10 +598,7 @@
     },
     "/api/v1/videos/{job_id}/keypoints2d": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Download 2D keypoints",
         "description": "Download 2D keypoints JSON file",
         "operationId": "download_keypoints_2d_api_v1_videos__job_id__keypoints2d_get",
@@ -773,28 +607,19 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "content": { "application/json": { "schema": {} } }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -803,10 +628,7 @@
     },
     "/api/v1/videos/{job_id}/keypoints3d": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Download 3D keypoints",
         "description": "Download 3D keypoints JSON file",
         "operationId": "download_keypoints_3d_api_v1_videos__job_id__keypoints3d_get",
@@ -815,28 +637,19 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "content": { "application/json": { "schema": {} } }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -845,10 +658,7 @@
     },
     "/api/v1/videos/{job_id}/scores": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Download confidence scores",
         "description": "Download confidence scores JSON file",
         "operationId": "download_scores_api_v1_videos__job_id__scores_get",
@@ -857,28 +667,19 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "content": { "application/json": { "schema": {} } }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -887,10 +688,7 @@
     },
     "/api/v1/videos/{job_id}/feedback": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Download feedback text",
         "description": "Download feedback text file",
         "operationId": "download_feedback_api_v1_videos__job_id__feedback_get",
@@ -899,28 +697,19 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "content": { "application/json": { "schema": {} } }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -929,10 +718,7 @@
     },
     "/api/v1/videos/{job_id}/report": {
       "get": {
-        "tags": [
-          "videos",
-          "videos"
-        ],
+        "tags": ["videos", "videos"],
         "summary": "Get structured feedback report",
         "description": "Return the structured feedback report for a given job as JSON.\n\nThis implementation:\n- Reads the JSON report from S3 (results/{job_id}/report.json)\n- Parses it into a Python object (dict/list)\n- Returns it directly so FastAPI can serialize it back to JSON\n\nNote: This is intentionally schema-less for now so we can iterate quickly\non the response format (Option 1). We can later introduce a Pydantic\nmodel as a response_model once the schema stabilizes.",
         "operationId": "get_feedback_report_api_v1_videos__job_id__report_get",
@@ -941,10 +727,7 @@
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Job Id"
-            }
+            "schema": { "type": "string", "title": "Job Id" }
           }
         ],
         "responses": {
@@ -952,7 +735,11 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Feedback Report Api V1 Videos  Job Id  Report Get"
+                }
               }
             }
           },
@@ -960,9 +747,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -982,17 +767,13 @@
           }
         },
         "type": "object",
-        "required": [
-          "file"
-        ],
+        "required": ["file"],
         "title": "Body_submit_video_analysis_api_v1_analyze_post"
       },
       "HTTPValidationError": {
         "properties": {
           "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
+            "items": { "$ref": "#/components/schemas/ValidationError" },
             "type": "array",
             "title": "Detail"
           }
@@ -1002,79 +783,30 @@
       },
       "JobResponse": {
         "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "job_id": {
-            "type": "string",
-            "title": "Job Id"
-          },
-          "user_id": {
-            "type": "integer",
-            "title": "User Id"
-          },
-          "status": {
-            "$ref": "#/components/schemas/JobStatus"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          },
+          "id": { "type": "integer", "title": "Id" },
+          "job_id": { "type": "string", "title": "Job Id" },
+          "user_id": { "type": "integer", "title": "User Id" },
+          "status": { "$ref": "#/components/schemas/JobStatus" },
+          "filename": { "type": "string", "title": "Filename" },
           "progress": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
             "title": "Progress",
             "default": 0
           },
           "video_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Video Path"
           },
           "result_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Result Path"
           },
           "data_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Data Path"
           },
           "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Error Message"
           },
           "created_at": {
@@ -1084,25 +816,15 @@
           },
           "started_at": {
             "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
             ],
             "title": "Started At"
           },
           "completed_at": {
             "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
             ],
             "title": "Completed At"
           }
@@ -1133,40 +855,24 @@
       },
       "Token": {
         "properties": {
-          "access_token": {
-            "type": "string",
-            "title": "Access Token"
-          },
+          "access_token": { "type": "string", "title": "Access Token" },
           "token_type": {
             "type": "string",
             "title": "Token Type",
             "default": "bearer"
           },
           "refresh_token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Refresh Token"
           }
         },
         "type": "object",
-        "required": [
-          "access_token"
-        ],
+        "required": ["access_token"],
         "title": "Token"
       },
       "UserCreate": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
+          "email": { "type": "string", "format": "email", "title": "Email" },
           "username": {
             "type": "string",
             "maxLength": 50,
@@ -1181,53 +887,29 @@
           }
         },
         "type": "object",
-        "required": [
-          "email",
-          "username",
-          "password"
-        ],
+        "required": ["email", "username", "password"],
         "title": "UserCreate"
       },
       "UserLogin": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "password": {
-            "type": "string",
-            "title": "Password"
-          }
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "password": { "type": "string", "title": "Password" }
         },
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "title": "UserLogin"
       },
       "UserResponse": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
+          "email": { "type": "string", "format": "email", "title": "Email" },
           "username": {
             "type": "string",
             "maxLength": 50,
             "minLength": 3,
             "title": "Username"
           },
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
+          "id": { "type": "integer", "title": "Id" },
+          "is_active": { "type": "boolean", "title": "Is Active" },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1235,61 +917,26 @@
           }
         },
         "type": "object",
-        "required": [
-          "email",
-          "username",
-          "id",
-          "is_active",
-          "created_at"
-        ],
+        "required": ["email", "username", "id", "is_active", "created_at"],
         "title": "UserResponse"
       },
       "ValidationError": {
         "properties": {
           "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
             "type": "array",
             "title": "Location"
           },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" },
+          "input": { "title": "Input" },
+          "ctx": { "type": "object", "title": "Context" }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       }
     },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    }
+    "securitySchemes": { "HTTPBearer": { "type": "http", "scheme": "bearer" } }
   }
 }

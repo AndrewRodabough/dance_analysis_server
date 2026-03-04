@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Any, Dict
 
 import boto3
 from botocore.client import Config
@@ -98,8 +99,12 @@ async def download_feedback(job_id: str):
     return {"url": url}
 
 
-@router.get("/{job_id}/report", summary="Get structured feedback report")
-async def get_feedback_report(job_id: str):
+@router.get(
+    "/{job_id}/report",
+    summary="Get structured feedback report",
+    response_model=Dict[str, Any],
+)
+async def get_feedback_report(job_id: str) -> Dict[str, Any]:
     """
     Return the structured feedback report for a given job as JSON.
 
