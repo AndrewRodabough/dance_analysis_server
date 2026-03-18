@@ -22,6 +22,22 @@ from pythonjsonlogger import jsonlogger
 
 SERVICE_NAME = "dance-video-worker"
 
+# LogRecord attributes that cannot be used as extra keys
+_RESERVED_LOG_ATTRS = frozenset({
+    "name", "msg", "args", "created", "relativeCreated", "filename",
+    "module", "funcName", "levelno", "levelname", "lineno", "exc_info",
+    "exc_text", "stack_info", "thread", "threadName", "process",
+    "processName", "taskName", "pathname", "msecs", "message",
+})
+
+
+def _sanitize_extra(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Rename any keys that collide with reserved LogRecord attributes."""
+    return {
+        (f"log_{k}" if k in _RESERVED_LOG_ATTRS else k): v
+        for k, v in data.items()
+    }
+
 
 class WorkerJsonFormatter(jsonlogger.JsonFormatter):
     """JSON formatter matching the backend's log structure."""
@@ -114,7 +130,7 @@ def log_job_status(
     log_data.update(extra)
 
     level = logging.ERROR if status == "failed" else logging.INFO
-    logger.log(level, f"Job {job_id}: {status}", extra=log_data)
+    logger.log(level, f"Job {job_id}: {status}", extra=_sanitize_extra(log_data))
 
 
 def log_storage_operation(
@@ -167,4 +183,4 @@ def log_storage_operation(
     msg = f"Storage {operation} {provider}://{bucket}/{key}"
     if error:
         msg += f" failed: {error}"
-    logger.log(level, msg, extra=log_data)
+    logger.log(level, msg, extra=_sanitize_extra(log_data))

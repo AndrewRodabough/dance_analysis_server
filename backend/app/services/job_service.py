@@ -1,40 +1,58 @@
-"""Service for managing job queue operations."""
+"""Service layer for orchestrating job lifecycle events and linked video metadata."""
 
-from sqlalchemy.orm import Session
-from typing import Optional, List
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import List, Optional
 
-from app.models.job import Job, JobStatus
-from app.schemas.job import JobCreate, JobStatusUpdate
+from sqlalchemy.orm import Session
+
 from app.core.logging import log_job_status
+from app.models.job import Job, JobStatus
+from app.models.video import Video, VideoPermission
+from app.schemas.job import JobCreate, JobStatusUpdate
 
 
 class JobService:
-    """Service for managing job queue operations."""
+    """Business logic for CRUD operations on jobs and their associated videos."""
 
+    # -------------------------------------------------------------------------
+    # Creation & Retrieval
+    # -------------------------------------------------------------------------
     @staticmethod
-    def create_job(db: Session, user_id: int, job_data: JobCreate, video_path: Optional[str] = None) -> Job:
+    def create_job(
+        db: Session,
+        user_id: int,
+        job_data: JobCreate,
+        video_storage_key: Optional[str] = None,
+    ) -> Job:
         """
-        Create a new job in the database.
+        Create a new job record and optionally link it to a video asset.
 
         Args:
-            db: Database session
-            user_id: ID of the user creating the job
-            job_data: Job creation data
-            video_path: Optional S3 path to video
+            db: Database session.
+            user_id: ID of the authenticated user requesting the job.
+            job_data: DTO describing the upload (currently just filename).
+            video_storage_key: Optional storage key if the video artifact already exists.
 
         Returns:
-            Created Job object
+            The persisted Job instance.
         """
         job_id = str(uuid.uuid4())
+
+        video = (
+            JobService._get_or_create_video(db, owner_id=user_id, storage_key=video_storage_key)
+            if video_storage_key
+            else None
+        )
 
         new_job = Job(
             job_id=job_id,
             user_id=user_id,
             filename=job_data.filename,
-            video_path=video_path,
-            status=JobStatus.PENDING
+            status=JobStatus.PENDING,
+            video=video,
         )
 
         db.add(new_job)
@@ -42,21 +60,20 @@ class JobService:
         db.refresh(new_job)
 
         log_job_status(job_id, status="created", user_id=user_id, file_name=job_data.filename)
-
         return new_job
 
     @staticmethod
     def get_job_by_id(db: Session, job_id: str, user_id: Optional[int] = None) -> Optional[Job]:
         """
-        Get a job by job_id, optionally ensuring it belongs to the user.
+        Retrieve a job by its public UUID, optionally enforcing ownership.
 
         Args:
-            db: Database session
-            job_id: UUID string of the job
-            user_id: Optional ID of the user requesting the job
+            db: Database session.
+            job_id: Public UUID assigned to the job.
+            user_id: If provided, ensures the job belongs to this user.
 
         Returns:
-            Job object or None if not found or unauthorized
+            Job instance or None.
         """
         query = db.query(Job).filter(Job.job_id == job_id)
         if user_id is not None:
@@ -69,71 +86,67 @@ class JobService:
         user_id: int,
         status: Optional[JobStatus] = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Job]:
         """
-        Get all jobs for a user, optionally filtered by status.
+        Paginated listing of jobs owned by a specific user.
 
         Args:
-            db: Database session
-            user_id: ID of the user
-            status: Optional status filter
-            limit: Maximum number of jobs to return
-            offset: Number of jobs to skip (pagination)
+            db: Database session.
+            user_id: Owner of the jobs.
+            status: Optional filter for job status.
+            limit: Max results.
+            offset: Pagination offset.
 
         Returns:
-            List of Job objects
+            List of Job instances.
         """
         query = db.query(Job).filter(Job.user_id == user_id)
 
         if status:
             query = query.filter(Job.status == status)
         else:
-            # By default, exclude hidden failed jobs from listing
             query = query.filter(Job.status != JobStatus.FAILED_HIDDEN)
 
         return query.order_by(Job.created_at.desc()).limit(limit).offset(offset).all()
 
+    # -------------------------------------------------------------------------
+    # Mutations
+    # -------------------------------------------------------------------------
     @staticmethod
     def update_job_status(
         db: Session,
         job_id: str,
-        status_update: JobStatusUpdate
+        status_update: JobStatusUpdate,
     ) -> Optional[Job]:
         """
-        Update job status and related fields.
+        Apply status/metadata updates emitted by workers.
 
         Args:
-            db: Database session
-            job_id: UUID string of the job
-            status_update: Status update data
+            db: Database session.
+            job_id: Public UUID of the job.
+            status_update: Pydantic DTO carrying update payload.
 
         Returns:
-            Updated Job object or None if not found
+            Updated Job instance or None.
         """
         job = db.query(Job).filter(Job.job_id == job_id).first()
-
         if not job:
             return None
 
-        # Update status
         job.status = status_update.status
 
-        # Update progress
         if status_update.progress is not None:
             job.progress = status_update.progress
 
-        # Update timestamps based on status
         if status_update.status == JobStatus.PROCESSING and not job.started_at:
             job.started_at = datetime.utcnow()
-        elif status_update.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.FAILED_HIDDEN]:
+        elif status_update.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.FAILED_HIDDEN}:
             job.completed_at = datetime.utcnow()
 
-        # Set progress to 100 on completion
         if status_update.status == JobStatus.COMPLETED:
             job.progress = 100
 
-        # Update optional fields
         if status_update.error_message:
             job.error_message = status_update.error_message
         if status_update.result_path:
@@ -149,64 +162,119 @@ class JobService:
             status=status_update.status.value,
             error=status_update.error_message,
         )
-
         return job
 
     @staticmethod
-    def update_job_video_path(db: Session, job_id: str, video_path: str) -> Optional[Job]:
+    def update_job_video_path(db: Session, job_id: str, storage_key: str) -> Optional[Job]:
         """
-        Update the video path for a job.
+        Ensure a job references the canonical video row for the provided storage key.
 
         Args:
-            db: Database session
-            job_id: UUID string of the job
-            video_path: S3 path to video
+            db: Database session.
+            job_id: Public UUID of the job.
+            storage_key: Cloud/Object storage identifier of the uploaded video.
 
         Returns:
-            Updated Job object or None if not found
+            Updated Job or None if job not found.
         """
         job = db.query(Job).filter(Job.job_id == job_id).first()
         if not job:
             return None
 
-        job.video_path = video_path
+        video = JobService._get_or_create_video(db, owner_id=job.user_id, storage_key=storage_key)
+        job.video = video
+
         db.commit()
         db.refresh(job)
         return job
 
     @staticmethod
-    def get_next_pending_job(db: Session) -> Optional[Job]:
-        """
-        Get the next pending job for processing (FIFO queue).
-
-        Returns:
-            Oldest pending Job or None if queue is empty
-        """
-        return db.query(Job).filter(
-            Job.status == JobStatus.PENDING
-        ).order_by(Job.created_at.asc()).first()
-
-    @staticmethod
     def delete_job(db: Session, job_id: str, user_id: int) -> bool:
         """
-        Delete a job.
+        Delete a job if it is owned by the requesting user.
 
         Args:
-            db: Database session
-            job_id: UUID string of the job
-            user_id: ID of the user requesting deletion
+            db: Database session.
+            job_id: Public UUID of the job.
+            user_id: Owner verification.
 
         Returns:
-            True if deleted, False if not found or unauthorized
+            True if deleted.
         """
-        job = db.query(Job).filter(
-            Job.job_id == job_id,
-            Job.user_id == user_id
-        ).first()
-
+        job = db.query(Job).filter(Job.job_id == job_id, Job.user_id == user_id).first()
         if not job:
             return False
 
         db.delete(job)
         db.commit()
         return True
+
+    @staticmethod
+    def get_next_pending_job(db: Session) -> Optional[Job]:
+        """
+        Retrieve the oldest pending job for worker consumption (FIFO semantics).
+        """
+        return (
+            db.query(Job)
+            .filter(Job.status == JobStatus.PENDING)
+            .order_by(Job.created_at.asc())
+            .first()
+        )
+
+    # -------------------------------------------------------------------------
+    # Private helpers
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def _get_or_create_video(db: Session, owner_id: int, storage_key: Optional[str]) -> Optional[Video]:
+        """
+        Deduplicate video rows by storage key and attach default owner permissions.
+        """
+        if not storage_key:
+            return None
+
+        video = (
+            db.query(Video)
+            .filter(Video.owner_id == owner_id, Video.storage_key == storage_key)
+            .first()
+        )
+        if video:
+            JobService._ensure_owner_permission(db, video, owner_id)
+            return video
+
+        video = Video(owner_id=owner_id, storage_key=storage_key)
+        db.add(video)
+        db.flush()
+
+        JobService._ensure_owner_permission(db, video, owner_id)
+        return video
+
+    @staticmethod
+    def _ensure_owner_permission(db: Session, video: Video, owner_id: int) -> None:
+        """
+        Guarantee that the owner row exists in the permission table with full rights.
+        """
+        permission = (
+            db.query(VideoPermission)
+            .filter(
+                VideoPermission.video_id == video.id,
+                VideoPermission.user_id == owner_id,
+            )
+            .first()
+        )
+        if permission:
+            if not (permission.can_view and permission.can_download and permission.can_comment):
+                permission.can_view = True
+                permission.can_download = True
+                permission.can_comment = True
+                db.flush()
+            return
+
+        permission = VideoPermission(
+            video_id=video.id,
+            user_id=owner_id,
+            can_view=True,
+            can_download=True,
+            can_comment=True,
+        )
+        db.add(permission)
+        db.flush()

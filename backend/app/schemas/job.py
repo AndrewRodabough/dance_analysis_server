@@ -1,9 +1,12 @@
 """Pydantic schemas for job-related requests and responses."""
 
-from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.job import JobStatus
+from app.schemas.video import VideoResponse
 
 
 class JobCreate(BaseModel):
@@ -16,10 +19,11 @@ class JobResponse(BaseModel):
     id: int
     job_id: str
     user_id: int
+    video_id: Optional[int] = None
     status: JobStatus
     filename: str
     progress: Optional[int] = 0
-    video_path: Optional[str] = None
+    video: Optional[VideoResponse] = None
     result_path: Optional[str] = None
     data_path: Optional[str] = None
     error_message: Optional[str] = None

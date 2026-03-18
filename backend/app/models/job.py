@@ -2,11 +2,12 @@
 
 from enum import Enum as PyEnum
 
-from app.database import Base
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
+from app.database import Base
 
 
 class JobStatus(str, PyEnum):
@@ -34,8 +35,8 @@ class Job(Base):
     )
     filename = Column(String(255), nullable=False)
 
-    # Storage paths
-    video_path = Column(String(500))  # S3 path to original video
+    # Video reference and storage paths
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
     result_path = Column(String(500))  # S3 path to result video
     data_path = Column(String(500))  # S3 path to JSON data
 
@@ -55,6 +56,7 @@ class Job(Base):
 
     # Relationship to User
     user = relationship("User", backref="jobs")
+    video = relationship("Video", back_populates="jobs")
 
     def __repr__(self):
         return f"<Job(id={self.id}, job_id={self.job_id}, status={self.status})>"

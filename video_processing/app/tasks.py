@@ -1,14 +1,14 @@
 """Video processing tasks - GPU stage + analysis."""
 
-from pathlib import Path
 import json
-from typing import Dict, Callable, Optional
 import logging
+import os
+import time
+from pathlib import Path
+from typing import Callable, Dict, Optional
+
 import boto3
 from botocore.client import Config
-import os
-import tempfile
-import numpy as np
 
 from app.analysis.pipelines.orchestrator import run_analysis_pipeline
 
@@ -78,12 +78,28 @@ def process_job(
 
         # Run analysis pipeline
         update_status('Running analysis pipeline', 20)
+        analysis_stage_meta = {
+            "event_type": "analysis_stage",
+            "stage": "analysis_pipeline",
+            "job_id": job_id,
+        }
+        logger.info(
+            f"[{job_id}] Analysis pipeline started",
+            extra={**analysis_stage_meta, "status": "started"},
+        )
+        analysis_started_at = time.perf_counter()
         results = run_analysis_pipeline(
             local_video_path=local_video_path,
             visualization_video_path=Path("/workspace/outputs") / job_id / "video_visualization.mp4",
             keypoints_2d_output_path=Path("/workspace/outputs") / job_id / "keypoints_2d.json",
             keypoints_3d_output_path=Path("/workspace/outputs") / job_id / "keypoints_3d.json",
             update_status=update_status,
+            job_id=job_id,
+        )
+        analysis_duration_ms = round((time.perf_counter() - analysis_started_at) * 1000, 2)
+        logger.info(
+            f"[{job_id}] Analysis pipeline completed in {analysis_duration_ms} ms",
+            extra={**analysis_stage_meta, "status": "completed", "duration_ms": analysis_duration_ms},
         )
 
         # Upload results to S3
