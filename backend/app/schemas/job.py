@@ -6,7 +6,6 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.job import JobStatus
-from app.schemas.video import VideoResponse
 
 
 class JobCreate(BaseModel):
@@ -23,7 +22,6 @@ class JobResponse(BaseModel):
     status: JobStatus
     filename: str
     progress: Optional[int] = 0
-    video: Optional[VideoResponse] = None
     result_path: Optional[str] = None
     data_path: Optional[str] = None
     error_message: Optional[str] = None

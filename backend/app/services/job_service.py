@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import log_job_status
 from app.models.job import Job, JobStatus
-from app.models.video import Video, VideoPermission
+from app.models.video import Video
 from app.schemas.job import JobCreate, JobStatusUpdate
 
 
@@ -227,54 +227,20 @@ class JobService:
     @staticmethod
     def _get_or_create_video(db: Session, owner_id: int, storage_key: Optional[str]) -> Optional[Video]:
         """
-        Deduplicate video rows by storage key and attach default owner permissions.
+        Deduplicate video rows by storage key.
         """
         if not storage_key:
             return None
 
         video = (
             db.query(Video)
-            .filter(Video.owner_id == owner_id, Video.storage_key == storage_key)
+            .filter(Video.uploaded_by == owner_id, Video.storage_key == storage_key)
             .first()
         )
         if video:
-            JobService._ensure_owner_permission(db, video, owner_id)
             return video
 
-        video = Video(owner_id=owner_id, storage_key=storage_key)
+        video = Video(uploaded_by=owner_id, storage_key=storage_key)
         db.add(video)
         db.flush()
-
-        JobService._ensure_owner_permission(db, video, owner_id)
         return video
-
-    @staticmethod
-    def _ensure_owner_permission(db: Session, video: Video, owner_id: int) -> None:
-        """
-        Guarantee that the owner row exists in the permission table with full rights.
-        """
-        permission = (
-            db.query(VideoPermission)
-            .filter(
-                VideoPermission.video_id == video.id,
-                VideoPermission.user_id == owner_id,
-            )
-            .first()
-        )
-        if permission:
-            if not (permission.can_view and permission.can_download and permission.can_comment):
-                permission.can_view = True
-                permission.can_download = True
-                permission.can_comment = True
-                db.flush()
-            return
-
-        permission = VideoPermission(
-            video_id=video.id,
-            user_id=owner_id,
-            can_view=True,
-            can_download=True,
-            can_comment=True,
-        )
-        db.add(permission)
-        db.flush()

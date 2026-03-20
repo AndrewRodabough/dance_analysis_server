@@ -1,56 +1,49 @@
+"""Pydantic schemas for video-related requests and responses."""
+
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.video import VideoVisibility
-
-
-class VideoBase(BaseModel):
-    """Shared fields for video metadata."""
-    storage_key: str
-    visibility: VideoVisibility = VideoVisibility.PRIVATE
-    duration: Optional[int] = None  # seconds
-    file_size: Optional[int] = None  # bytes
+from app.models.video import VideoStatus
 
 
-class VideoCreate(VideoBase):
-    """Schema used when creating a new video entry."""
-    owner_id: int
-
-
-class VideoUpdate(BaseModel):
-    """Schema used when updating mutable video fields."""
-    visibility: Optional[VideoVisibility] = None
-    duration: Optional[int] = None
+class VideoRegisterUpload(BaseModel):
+    """Request body for registering a new video upload."""
+    filename: str = Field(..., min_length=1, max_length=500)
+    content_type: str = Field(default="video/mp4", max_length=100)
     file_size: Optional[int] = None
 
 
-class VideoResponse(VideoBase):
-    """Schema returned to clients with persisted video metadata."""
+class VideoRegisterResponse(BaseModel):
+    """Response after registering a video upload (includes presigned URL)."""
+    video: "VideoResponse"
+    upload_url: str
+    expires_at: datetime
+
+
+class VideoResponse(BaseModel):
+    """Response body for video metadata."""
     id: int
-    owner_id: int
+    routine_id: Optional[int] = None
+    uploaded_by: int
+    storage_key: str
+    status: VideoStatus
+    original_filename: Optional[str] = None
+    content_type: Optional[str] = None
+    duration: Optional[int] = None
+    file_size: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class VideoPermissionBase(BaseModel):
-    """Shared fields for video permission records."""
-    can_view: bool = False
-    can_download: bool = False
-    can_comment: bool = False
-
-
-class VideoPermissionCreate(VideoPermissionBase):
-    """Schema for granting permissions to another user."""
+class VideoDownloadResponse(BaseModel):
+    """Response with a presigned download URL."""
     video_id: int
-    user_id: int
+    download_url: str
+    expires_in: int = 3600
 
 
-class VideoPermissionResponse(VideoPermissionBase):
-    """Schema returned to clients describing permissions."""
-    video_id: int
-    user_id: int
-
-    model_config = ConfigDict(from_attributes=True)
+# Resolve forward reference
+VideoRegisterResponse.model_rebuild()
