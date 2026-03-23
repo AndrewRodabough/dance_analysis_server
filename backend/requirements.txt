@@ -15,3 +15,8 @@ psycopg2-binary
 passlib[bcrypt]
 python-jose[cryptography]
 email-validator
+
+# Testing
+pytest
+pytest-asyncio
+httpx

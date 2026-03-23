@@ -1,5 +1,5 @@
-# scripts/generate_openapi.py
 #!/usr/bin/env python3
+# scripts/generate_openapi.py
 """Generate OpenAPI spec without running the server."""
 
 import json

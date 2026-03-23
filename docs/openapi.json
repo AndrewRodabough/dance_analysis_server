@@ -8,7 +8,10 @@
   "paths": {
     "/api/v1/": {
       "get": {
-        "tags": ["health", "health"],
+        "tags": [
+          "health",
+          "health"
+        ],
         "summary": "Service status",
         "operationId": "read_root_api_v1__get",
         "responses": {
@@ -17,7 +20,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "type": "object",
                   "title": "Response Read Root Api V1  Get"
                 }
@@ -29,7 +34,10 @@
     },
     "/api/v1/health": {
       "get": {
-        "tags": ["health", "health"],
+        "tags": [
+          "health",
+          "health"
+        ],
         "summary": "Health check",
         "operationId": "health_api_v1_health_get",
         "responses": {
@@ -38,7 +46,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "type": "object",
                   "title": "Response Health Api V1 Health Get"
                 }
@@ -50,14 +60,18 @@
     },
     "/api/v1/auth/register": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Register User",
         "description": "Register a new user.\n\n- **email**: Valid email address (unique)\n- **username**: Username between 3-50 characters (unique)\n- **password**: Password at least 8 characters",
         "operationId": "register_user_api_v1_auth_register_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UserCreate" }
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
             }
           },
           "required": true
@@ -67,7 +81,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/UserResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
               }
             }
           },
@@ -75,7 +91,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -84,14 +102,18 @@
     },
     "/api/v1/auth/login": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Login",
         "description": "Login and receive a JWT access token.\n\n- **email**: Registered email address\n- **password**: User password\n\nReturns a JWT token to be used in Authorization header as: `Bearer <token>`\n\nSets a HTTP-only cookie containing the refresh token.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UserLogin" }
+              "schema": {
+                "$ref": "#/components/schemas/UserLogin"
+              }
             }
           },
           "required": true
@@ -101,7 +123,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Token" }
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
               }
             }
           },
@@ -109,7 +133,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -118,7 +144,9 @@
     },
     "/api/v1/auth/me": {
       "get": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Get Current User Info",
         "description": "Get current authenticated user information.\n\nRequires: JWT token in Authorization header",
         "operationId": "get_current_user_info_api_v1_auth_me_get",
@@ -127,26 +155,40 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/UserResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/auth/logout": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Logout",
         "description": "Logout the current user.\n\nThis clears the HTTP-only refresh token cookie so that the client\ncan discard any stored access token and treat the user as logged out.",
         "operationId": "logout_api_v1_auth_logout_post",
-        "responses": { "204": { "description": "Successful Response" } }
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
       }
     },
     "/api/v1/auth/refresh": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Refresh Token",
         "description": "Refresh access token using a valid (non-expired) refresh token stored\nin an HTTP-only cookie.\n\nIf the refresh token is expired or invalid, returns 401 so the client\ncan log the user out and clears the refresh cookie.",
         "operationId": "refresh_token_api_v1_auth_refresh_post",
@@ -155,7 +197,1402 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Token" }
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "List Groups",
+        "description": "Get all groups the current user belongs to.",
+        "operationId": "list_groups_api_v1_groups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GroupResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Groups Api V1 Groups Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Create Group",
+        "description": "Create a new group.\n\n- **name**: Group name (1-255 characters)\n- **description**: Optional description\n\nThe creator is automatically added as an owner member.",
+        "operationId": "create_group_api_v1_groups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Get Group",
+        "description": "Get group details. Requires membership.",
+        "operationId": "get_group_api_v1_groups__group_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/members": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "List Members",
+        "description": "List all active members of a group. Requires membership.",
+        "operationId": "list_members_api_v1_groups__group_id__members_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupMembershipResponse"
+                  },
+                  "title": "Response List Members Api V1 Groups  Group Id  Members Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Add Member",
+        "description": "Add a member to a group.\n\n- **user_id**: ID of user to add\n- **role**: Role to assign (default: member)\n\nRequires membership (v0.0.1: any active member can add).",
+        "operationId": "add_member_api_v1_groups__group_id__members_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Remove Member",
+        "description": "Remove a member from a group. Requires membership.",
+        "operationId": "remove_member_api_v1_groups__group_id__members__user_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/invites": {
+      "post": {
+        "tags": [
+          "group-invites"
+        ],
+        "summary": "Create Invite",
+        "description": "Create a group invite for an email address.\n\n- **email**: Email to invite\n- **role**: Optional role for the invitee\n\nRequires group membership. Does NOT create a membership immediately.",
+        "operationId": "create_invite_api_v1_groups__group_id__invites_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupInviteCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupInviteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/group-invites/accept": {
+      "post": {
+        "tags": [
+          "group-invites"
+        ],
+        "summary": "Accept Invite",
+        "description": "Accept a group invite by token.\n\n- **token**: The invite token received\n\nThe accepting user's email must match the invite email (strict).\nReturns 404 for any failure to avoid information leakage.",
+        "operationId": "accept_invite_api_v1_group_invites_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMembershipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/routines": {
+      "post": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "Create Routine",
+        "description": "Create a routine within a group.\n\n- **title**: Routine title (1-255 characters)\n- **dance_id**: ID of the dance",
+        "operationId": "create_routine_api_v1_groups__group_id__routines_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "List Routines",
+        "description": "List all routines in a group. Requires membership.",
+        "operationId": "list_routines_api_v1_groups__group_id__routines_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineResponse"
+                  },
+                  "title": "Response List Routines Api V1 Groups  Group Id  Routines Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}": {
+      "get": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "Get Routine",
+        "description": "Get a specific routine. Requires membership.",
+        "operationId": "get_routine_api_v1_groups__group_id__routines__routine_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "Update Routine",
+        "description": "Update a routine. Requires membership.",
+        "operationId": "update_routine_api_v1_groups__group_id__routines__routine_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "Delete Routine",
+        "description": "Delete a routine. Requires membership.",
+        "operationId": "delete_routine_api_v1_groups__group_id__routines__routine_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/videos": {
+      "post": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "Register Upload",
+        "description": "Register a new video upload.\n\nReturns a presigned PUT URL for the client to upload the file directly.\n\n- **filename**: Name of the video file\n- **content_type**: MIME type (default: video/mp4)\n- **file_size**: Optional file size in bytes",
+        "operationId": "register_upload_api_v1_groups__group_id__routines__routine_id__videos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoRegisterUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoRegisterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "List Videos",
+        "description": "List videos for a routine.\n\nDefault: only uploaded videos (visible to all group members).\nPass ?status=pending_upload to see your own pending uploads.",
+        "operationId": "list_videos_api_v1_groups__group_id__routines__routine_id__videos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VideoStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by video status",
+              "title": "Status"
+            },
+            "description": "Filter by video status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VideoResponse"
+                  },
+                  "title": "Response List Videos Api V1 Groups  Group Id  Routines  Routine Id  Videos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}": {
+      "get": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "Get Video",
+        "description": "Get video metadata. Deleted videos return 404.",
+        "operationId": "get_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "Delete Video",
+        "description": "Soft delete a video.\n\nSets status=deleted and migrates associated notes to routine-level.",
+        "operationId": "delete_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/finalize": {
+      "post": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "Finalize Upload",
+        "description": "Mark a video upload as complete.\n\nOnly the uploader can finalize their pending upload (idempotent).",
+        "operationId": "finalize_upload_api_v1_groups__group_id__routines__routine_id__videos__video_id__finalize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/download": {
+      "get": {
+        "tags": [
+          "routine-videos"
+        ],
+        "summary": "Download Video",
+        "description": "Get a presigned download URL. Only works for uploaded videos.",
+        "operationId": "download_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoDownloadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/notes": {
+      "post": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Create Routine Note",
+        "description": "Create a routine-level note.\n\n- **note_type**: Type of note (critique, feedback, complement)\n- **contents**: Note contents\n- **details**: Optional structured data (JSON)",
+        "operationId": "create_routine_note_api_v1_groups__group_id__routines__routine_id__notes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineNoteCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "List Routine Notes",
+        "description": "List all notes for a routine (including migrated video notes).",
+        "operationId": "list_routine_notes_api_v1_groups__group_id__routines__routine_id__notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteResponse"
+                  },
+                  "title": "Response List Routine Notes Api V1 Groups  Group Id  Routines  Routine Id  Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/notes/{note_id}": {
+      "delete": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Delete Note",
+        "description": "Delete a note. Requires group membership.",
+        "operationId": "delete_note_api_v1_groups__group_id__routines__routine_id__notes__note_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/notes": {
+      "post": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Create Video Note",
+        "description": "Create a video note with optional timestamp.\n\n- **note_type**: Type of note\n- **contents**: Note contents\n- **video_timestamp_ms**: Optional timestamp in milliseconds\n- **details**: Optional structured data",
+        "operationId": "create_video_note_api_v1_groups__group_id__routines__routine_id__videos__video_id__notes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoNoteCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "List Video Notes",
+        "description": "List all notes for a specific video.",
+        "operationId": "list_video_notes_api_v1_groups__group_id__routines__routine_id__videos__video_id__notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteResponse"
+                  },
+                  "title": "Response List Video Notes Api V1 Groups  Group Id  Routines  Routine Id  Videos  Video Id  Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -164,11 +1601,17 @@
     },
     "/api/v1/jobs": {
       "get": {
-        "tags": ["jobs"],
+        "tags": [
+          "jobs"
+        ],
         "summary": "List User Jobs",
         "description": "Get all jobs for the current user.\n\n- **status**: Optional filter by job status (pending, processing, completed, failed, failed_hidden)\n- **limit**: Maximum results (1-100, default 50)\n- **offset**: Pagination offset (default 0)\n\nNote: Jobs with status 'failed_hidden' are excluded by default.\nPass status=failed_hidden explicitly to view them.",
         "operationId": "list_user_jobs_api_v1_jobs_get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "status",
@@ -176,8 +1619,12 @@
             "required": false,
             "schema": {
               "anyOf": [
-                { "$ref": "#/components/schemas/JobStatus" },
-                { "type": "null" }
+                {
+                  "$ref": "#/components/schemas/JobStatus"
+                },
+                {
+                  "type": "null"
+                }
               ],
               "description": "Filter by job status",
               "title": "Status"
@@ -219,7 +1666,9 @@
               "application/json": {
                 "schema": {
                   "type": "array",
-                  "items": { "$ref": "#/components/schemas/JobResponse" },
+                  "items": {
+                    "$ref": "#/components/schemas/JobResponse"
+                  },
                   "title": "Response List User Jobs Api V1 Jobs Get"
                 }
               }
@@ -229,7 +1678,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -238,17 +1689,26 @@
     },
     "/api/v1/jobs/{job_id}": {
       "get": {
-        "tags": ["jobs"],
+        "tags": [
+          "jobs"
+        ],
         "summary": "Get Job Details",
         "description": "Get details of a specific job.",
         "operationId": "get_job_details_api_v1_jobs__job_id__get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
           }
         ],
         "responses": {
@@ -256,7 +1716,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/JobResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
               }
             }
           },
@@ -264,33 +1726,358 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         }
       },
       "delete": {
-        "tags": ["jobs"],
+        "tags": [
+          "jobs"
+        ],
         "summary": "Delete Job",
         "description": "Delete a job.\n\nNote: This will delete job metadata. Associated S3 files are also cleaned up.",
         "operationId": "delete_job_api_v1_jobs__job_id__delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
           }
         ],
         "responses": {
-          "204": { "description": "Successful Response" },
+          "204": {
+            "description": "Successful Response"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/visualization": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get presigned URL for visualization video",
+        "description": "Owner-only: presigned URL for the pose visualization mp4.",
+        "operationId": "get_visualization_url_api_v1_jobs__job_id__artifacts_visualization_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Visualization Url Api V1 Jobs  Job Id  Artifacts Visualization Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/keypoints2d": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get presigned URL for 2D keypoints JSON",
+        "description": "Owner-only: presigned URL for 2D keypoints json.",
+        "operationId": "get_keypoints_2d_url_api_v1_jobs__job_id__artifacts_keypoints2d_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Keypoints 2D Url Api V1 Jobs  Job Id  Artifacts Keypoints2D Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/keypoints3d": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get presigned URL for 3D keypoints JSON",
+        "description": "Owner-only: presigned URL for 3D keypoints json.",
+        "operationId": "get_keypoints_3d_url_api_v1_jobs__job_id__artifacts_keypoints3d_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Keypoints 3D Url Api V1 Jobs  Job Id  Artifacts Keypoints3D Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/scores": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get presigned URL for confidence scores JSON",
+        "description": "Owner-only: presigned URL for scores json.",
+        "operationId": "get_scores_url_api_v1_jobs__job_id__artifacts_scores_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Scores Url Api V1 Jobs  Job Id  Artifacts Scores Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/feedback": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get presigned URL for feedback text",
+        "description": "Owner-only: presigned URL for feedback.txt.",
+        "operationId": "get_feedback_url_api_v1_jobs__job_id__artifacts_feedback_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Feedback Url Api V1 Jobs  Job Id  Artifacts Feedback Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/artifacts/report": {
+      "get": {
+        "tags": [
+          "job-artifacts"
+        ],
+        "summary": "Get structured feedback report JSON",
+        "description": "Owner-only: return parsed JSON report.\n\nReads results/{job_id}/report.json and returns it as a JSON object.\n\nNon-leaky ownership:\n- require_job_owner returns 404 for non-owners.",
+        "operationId": "get_report_json_api_v1_jobs__job_id__artifacts_report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Report Json Api V1 Jobs  Job Id  Artifacts Report Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -299,11 +2086,18 @@
     },
     "/api/v1/analyze/upload-url": {
       "post": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Request presigned upload URL",
         "description": "Request a presigned URL for direct upload to Cloudflare R2.\n\nThis enables clients to upload videos directly to R2 without going through the API server,\nreducing server load and improving upload performance. The server will later pull the\nvideo from R2 into local MinIO on confirm.\n\n**Steps:**\n1. Call this endpoint to get upload URL and job_id\n2. PUT the video file to the upload_url\n3. Call /analyze/confirm with the job_id to start processing\n\n**Args:**\n- filename: Name of the video file (e.g., \"dance_video.mp4\")\n- content_type: MIME type of the video (default: \"video/mp4\")\n\n**Returns:**\n- upload_url: Presigned URL to upload the video (valid for 15 minutes)\n- job_id: Unique identifier for tracking this analysis\n- s3_key: S3 object key where the file will be stored",
         "operationId": "request_upload_url_api_v1_analyze_upload_url_post",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "filename",
@@ -346,7 +2140,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -355,11 +2151,18 @@
     },
     "/api/v1/analyze/confirm": {
       "post": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Confirm upload and start analysis",
         "description": "Confirm that a video has been uploaded to Cloudflare R2 and start the analysis pipeline.\n\nCall this endpoint after successfully uploading the video using the presigned URL\nfrom /analyze/upload-url. This will pull the video from R2 into local MinIO\nbefore queuing the job.\n\n**Args:**\n- job_id: The job ID received from /analyze/upload-url\n- s3_key: The S3 key received from /analyze/upload-url\n\n**Returns:**\n- Job details and queuing status",
         "operationId": "confirm_upload_and_start_analysis_api_v1_analyze_confirm_post",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
@@ -391,7 +2194,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "title": "Response Confirm Upload And Start Analysis Api V1 Analyze Confirm Post"
                 }
               }
@@ -401,7 +2206,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -410,7 +2217,10 @@
     },
     "/api/v1/analyze": {
       "post": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Submit video for analysis (legacy)",
         "description": "Upload a dance video for pose estimation analysis.\n\n**DEPRECATED**: This endpoint uploads videos through the API server.\nFor better performance, use the direct upload flow:\n1. POST /analyze/upload-url to get presigned URL\n2. PUT video to the presigned URL\n3. POST /analyze/confirm to start processing\n\nThe video is uploaded to S3 and queued for processing.\nReturns a job_id to track analysis progress.\n\n**Supported formats**: MP4, AVI, MOV",
         "operationId": "submit_video_analysis_api_v1_analyze_post",
@@ -430,7 +2240,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "type": "object",
                   "title": "Response Submit Video Analysis Api V1 Analyze Post"
                 }
@@ -441,27 +2253,43 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/analyze/{job_id}/status": {
       "get": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Check analysis status",
         "description": "Check the processing status of a video analysis job.\n\n**Possible statuses**:\n- `pending`: Job created, waiting to be queued\n- `processing`: Being processed by worker\n- `completed`: Complete and ready\n- `failed`: Error occurred",
         "operationId": "get_analysis_status_api_v1_analyze__job_id__status_get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
           }
         ],
         "responses": {
@@ -481,7 +2309,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -490,17 +2320,27 @@
     },
     "/api/v1/analyze/{job_id}/result": {
       "get": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Get analysis results",
         "description": "Get the complete results of a finished video analysis.\n\nReturns pose estimation data and links to download visualization video.",
         "operationId": "get_analysis_result_api_v1_analyze__job_id__result_get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
           }
         ],
         "responses": {
@@ -520,7 +2360,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -529,17 +2371,27 @@
     },
     "/api/v1/analyze/{job_id}": {
       "delete": {
-        "tags": ["analyze", "analyze"],
+        "tags": [
+          "analyze",
+          "analyze"
+        ],
         "summary": "Delete job and results",
         "description": "Delete a job and all associated files from S3.\n\nUseful for cleaning up completed or failed jobs.",
         "operationId": "delete_job_api_v1_analyze__job_id__delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
           }
         ],
         "responses": {
@@ -559,195 +2411,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/visualization": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Download visualization video",
-        "description": "Download the pose estimation visualization video",
-        "operationId": "download_visualization_api_v1_videos__job_id__visualization_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/keypoints2d": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Download 2D keypoints",
-        "description": "Download 2D keypoints JSON file",
-        "operationId": "download_keypoints_2d_api_v1_videos__job_id__keypoints2d_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/keypoints3d": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Download 3D keypoints",
-        "description": "Download 3D keypoints JSON file",
-        "operationId": "download_keypoints_3d_api_v1_videos__job_id__keypoints3d_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/scores": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Download confidence scores",
-        "description": "Download confidence scores JSON file",
-        "operationId": "download_scores_api_v1_videos__job_id__scores_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/feedback": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Download feedback text",
-        "description": "Download feedback text file",
-        "operationId": "download_feedback_api_v1_videos__job_id__feedback_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/videos/{job_id}/report": {
-      "get": {
-        "tags": ["videos", "videos"],
-        "summary": "Get structured feedback report",
-        "description": "Return the structured feedback report for a given job as JSON.\n\nThis implementation:\n- Reads the JSON report from S3 (results/{job_id}/report.json)\n- Parses it into a Python object (dict/list)\n- Returns it directly so FastAPI can serialize it back to JSON\n\nNote: This is intentionally schema-less for now so we can iterate quickly\non the response format (Option 1). We can later introduce a Pydantic\nmodel as a response_model once the schema stabilizes.",
-        "operationId": "get_feedback_report_api_v1_videos__job_id__report_get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "title": "Job Id" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Feedback Report Api V1 Videos  Job Id  Report Get"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -757,23 +2423,293 @@
   },
   "components": {
     "schemas": {
+      "AcceptInviteRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "AcceptInviteRequest",
+        "description": "Request body for accepting a group invite by token."
+      },
+      "AddMemberRequest": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/GroupRole",
+            "default": "member"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "AddMemberRequest",
+        "description": "Request body for adding a member to a group."
+      },
       "Body_submit_video_analysis_api_v1_analyze_post": {
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "description": "Video file (mp4, avi, mov)"
           }
         },
         "type": "object",
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "title": "Body_submit_video_analysis_api_v1_analyze_post"
+      },
+      "GroupCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GroupCreate",
+        "description": "Request body for creating a group."
+      },
+      "GroupInviteCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "Email address to invite."
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupRole"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional role for the invitee (defaults to member)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "GroupInviteCreate",
+        "description": "Request body for creating a group invite."
+      },
+      "GroupInviteResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "group_id": {
+            "type": "integer",
+            "title": "Group Id"
+          },
+          "created_by": {
+            "type": "integer",
+            "title": "Created By"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/GroupInviteStatus"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "group_id",
+          "created_by",
+          "email",
+          "status",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "GroupInviteResponse",
+        "description": "Response body for a group invite."
+      },
+      "GroupInviteStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "revoked",
+          "expired"
+        ],
+        "title": "GroupInviteStatus",
+        "description": "Status of a group invite."
+      },
+      "GroupMembershipResponse": {
+        "properties": {
+          "group_id": {
+            "type": "integer",
+            "title": "Group Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/GroupRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MembershipStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "user_id",
+          "role",
+          "status",
+          "created_at"
+        ],
+        "title": "GroupMembershipResponse",
+        "description": "Response body for a group membership."
+      },
+      "GroupResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "created_by": {
+            "type": "integer",
+            "title": "Created By"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_by",
+          "is_archived",
+          "created_at"
+        ],
+        "title": "GroupResponse",
+        "description": "Response body for group data."
+      },
+      "GroupRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "coach",
+          "member"
+        ],
+        "title": "GroupRole",
+        "description": "Role within a group."
       },
       "HTTPValidationError": {
         "properties": {
           "detail": {
-            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
             "type": "array",
             "title": "Detail"
           }
@@ -783,30 +2719,79 @@
       },
       "JobResponse": {
         "properties": {
-          "id": { "type": "integer", "title": "Id" },
-          "job_id": { "type": "string", "title": "Job Id" },
-          "user_id": { "type": "integer", "title": "User Id" },
-          "status": { "$ref": "#/components/schemas/JobStatus" },
-          "filename": { "type": "string", "title": "Filename" },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "video_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
           "progress": {
-            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Progress",
             "default": 0
           },
-          "video_path": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
-            "title": "Video Path"
-          },
           "result_path": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Result Path"
           },
           "data_path": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Data Path"
           },
           "error_message": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error Message"
           },
           "created_at": {
@@ -816,15 +2801,25 @@
           },
           "started_at": {
             "anyOf": [
-              { "type": "string", "format": "date-time" },
-              { "type": "null" }
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "Started At"
           },
           "completed_at": {
             "anyOf": [
-              { "type": "string", "format": "date-time" },
-              { "type": "null" }
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "Completed At"
           }
@@ -853,26 +2848,309 @@
         "title": "JobStatus",
         "description": "Job status enumeration."
       },
+      "MembershipStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "invited",
+          "removed"
+        ],
+        "title": "MembershipStatus",
+        "description": "Status of a group membership."
+      },
+      "NoteResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "author_id": {
+            "type": "integer",
+            "title": "Author Id"
+          },
+          "routine_id": {
+            "type": "integer",
+            "title": "Routine Id"
+          },
+          "video_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Id"
+          },
+          "video_deleted": {
+            "type": "boolean",
+            "title": "Video Deleted",
+            "default": false
+          },
+          "video_timestamp_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Timestamp Ms"
+          },
+          "note_type": {
+            "$ref": "#/components/schemas/NoteType"
+          },
+          "source": {
+            "$ref": "#/components/schemas/NoteSource",
+            "default": "user"
+          },
+          "contents": {
+            "type": "string",
+            "title": "Contents"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "author_id",
+          "routine_id",
+          "note_type",
+          "contents",
+          "created_at"
+        ],
+        "title": "NoteResponse",
+        "description": "Response body for note data."
+      },
+      "NoteSource": {
+        "type": "string",
+        "enum": [
+          "user",
+          "ai",
+          "system"
+        ],
+        "title": "NoteSource",
+        "description": "Source of the note."
+      },
+      "NoteType": {
+        "type": "string",
+        "enum": [
+          "critique",
+          "feedback",
+          "complement"
+        ],
+        "title": "NoteType",
+        "description": "Note type enumeration."
+      },
+      "RoutineCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "dance_id": {
+            "type": "integer",
+            "title": "Dance Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "dance_id"
+        ],
+        "title": "RoutineCreate",
+        "description": "Request body for creating a routine."
+      },
+      "RoutineNoteCreate": {
+        "properties": {
+          "note_type": {
+            "$ref": "#/components/schemas/NoteType"
+          },
+          "contents": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Contents"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_type",
+          "contents"
+        ],
+        "title": "RoutineNoteCreate",
+        "description": "Request body for creating a routine-level note."
+      },
+      "RoutineResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "dance_id": {
+            "type": "integer",
+            "title": "Dance Id"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "created_by": {
+            "type": "integer",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "dance_id",
+          "id",
+          "created_by",
+          "created_at"
+        ],
+        "title": "RoutineResponse",
+        "description": "Response body for routine data."
+      },
+      "RoutineUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "dance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dance Id"
+          }
+        },
+        "type": "object",
+        "title": "RoutineUpdate",
+        "description": "Request body for updating a routine."
+      },
       "Token": {
         "properties": {
-          "access_token": { "type": "string", "title": "Access Token" },
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
           "token_type": {
             "type": "string",
             "title": "Token Type",
             "default": "bearer"
           },
           "refresh_token": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Refresh Token"
           }
         },
         "type": "object",
-        "required": ["access_token"],
+        "required": [
+          "access_token"
+        ],
         "title": "Token"
       },
       "UserCreate": {
         "properties": {
-          "email": { "type": "string", "format": "email", "title": "Email" },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
           "username": {
             "type": "string",
             "maxLength": 50,
@@ -887,29 +3165,53 @@
           }
         },
         "type": "object",
-        "required": ["email", "username", "password"],
+        "required": [
+          "email",
+          "username",
+          "password"
+        ],
         "title": "UserCreate"
       },
       "UserLogin": {
         "properties": {
-          "email": { "type": "string", "format": "email", "title": "Email" },
-          "password": { "type": "string", "title": "Password" }
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
         },
         "type": "object",
-        "required": ["email", "password"],
+        "required": [
+          "email",
+          "password"
+        ],
         "title": "UserLogin"
       },
       "UserResponse": {
         "properties": {
-          "email": { "type": "string", "format": "email", "title": "Email" },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
           "username": {
             "type": "string",
             "maxLength": 50,
             "minLength": 3,
             "title": "Username"
           },
-          "id": { "type": "integer", "title": "Id" },
-          "is_active": { "type": "boolean", "title": "Is Active" },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -917,26 +3219,284 @@
           }
         },
         "type": "object",
-        "required": ["email", "username", "id", "is_active", "created_at"],
+        "required": [
+          "email",
+          "username",
+          "id",
+          "is_active",
+          "created_at"
+        ],
         "title": "UserResponse"
       },
       "ValidationError": {
         "properties": {
           "loc": {
-            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
             "type": "array",
             "title": "Location"
           },
-          "msg": { "type": "string", "title": "Message" },
-          "type": { "type": "string", "title": "Error Type" },
-          "input": { "title": "Input" },
-          "ctx": { "type": "object", "title": "Context" }
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
+      },
+      "VideoDownloadResponse": {
+        "properties": {
+          "video_id": {
+            "type": "integer",
+            "title": "Video Id"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "default": 3600
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "download_url"
+        ],
+        "title": "VideoDownloadResponse",
+        "description": "Response with a presigned download URL."
+      },
+      "VideoNoteCreate": {
+        "properties": {
+          "note_type": {
+            "$ref": "#/components/schemas/NoteType"
+          },
+          "contents": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Contents"
+          },
+          "video_timestamp_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Timestamp Ms"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_type",
+          "contents"
+        ],
+        "title": "VideoNoteCreate",
+        "description": "Request body for creating a video note with timestamp."
+      },
+      "VideoRegisterResponse": {
+        "properties": {
+          "video": {
+            "$ref": "#/components/schemas/VideoResponse"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video",
+          "upload_url",
+          "expires_at"
+        ],
+        "title": "VideoRegisterResponse",
+        "description": "Response after registering a video upload (includes presigned URL)."
+      },
+      "VideoRegisterUpload": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Content Type",
+            "default": "video/mp4"
+          },
+          "file_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "VideoRegisterUpload",
+        "description": "Request body for registering a new video upload."
+      },
+      "VideoResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "routine_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routine Id"
+          },
+          "uploaded_by": {
+            "type": "integer",
+            "title": "Uploaded By"
+          },
+          "storage_key": {
+            "type": "string",
+            "title": "Storage Key"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VideoStatus"
+          },
+          "original_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Filename"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "file_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "uploaded_by",
+          "storage_key",
+          "status",
+          "created_at"
+        ],
+        "title": "VideoResponse",
+        "description": "Response body for video metadata."
+      },
+      "VideoStatus": {
+        "type": "string",
+        "enum": [
+          "pending_upload",
+          "uploaded",
+          "deleted"
+        ],
+        "title": "VideoStatus",
+        "description": "Upload lifecycle status for a video."
       }
     },
-    "securitySchemes": { "HTTPBearer": { "type": "http", "scheme": "bearer" } }
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
   }
 }

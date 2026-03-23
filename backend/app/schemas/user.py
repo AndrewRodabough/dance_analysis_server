@@ -1,7 +1,9 @@
 """Pydantic schemas for user-related requests and responses."""
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -19,7 +21,7 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(UserBase):
-    id: int
+    id: UUID
     is_active: bool
     created_at: datetime
 
