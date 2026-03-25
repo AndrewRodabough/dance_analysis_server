@@ -3,14 +3,17 @@ from fastapi import FastAPI
 from app.api.v1 import (
     analyze,
     auth,
+    dancer_slots,
     group_invites,
     groups,
     health,
     job_artifacts,
     jobs,
     notes,
+    routine_sessions,
     routine_videos,
     routines,
+    slot_assignments,
 )
 
 # Note: legacy invite router removed; group_invites replaces it
@@ -41,21 +44,32 @@ def create_app() -> FastAPI:
     app.include_router(groups.router, prefix="/api/v1/groups", tags=["groups"])
     app.include_router(group_invites.router, prefix="/api/v1", tags=["group-invites"])
 
-    # Routines (group-scoped)
+    # Routines (top-level, user-owned)
     app.include_router(
         routines.router,
-        prefix="/api/v1/groups/{group_id}/routines",
+        prefix="/api/v1/routines",
         tags=["routines"],
     )
 
-    # Routine videos (group-scoped)
+    # Routine sessions, dancer slots (paths defined in routers)
     app.include_router(
-        routine_videos.router,
-        prefix="/api/v1/groups/{group_id}/routines/{routine_id}/videos",
-        tags=["routine-videos"],
+        routine_sessions.router, prefix="/api/v1", tags=["routine-sessions"]
+    )
+    app.include_router(
+        dancer_slots.router, prefix="/api/v1", tags=["dancer-slots"]
+    )
+    app.include_router(
+        slot_assignments.router, prefix="/api/v1", tags=["slot-assignments"]
     )
 
-    # Notes (routine + video scoped, paths defined in router)
+    # Session videos
+    app.include_router(
+        routine_videos.router,
+        prefix="/api/v1/sessions/{session_id}/videos",
+        tags=["session-videos"],
+    )
+
+    # Notes (session + video scoped, paths defined in router)
     app.include_router(notes.router, prefix="/api/v1", tags=["notes"])
 
     # Jobs and job artifacts

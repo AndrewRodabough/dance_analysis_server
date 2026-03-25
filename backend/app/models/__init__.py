@@ -7,5 +7,8 @@ from app.models.group import Group, GroupInvite, GroupInviteStatus, GroupMembers
 from app.models.job import Job, JobStatus
 from app.models.note import Note, NoteSource, NoteType
 from app.models.routine import Routine
+from app.models.routine_dancer_slot import RoutineDancerSlot
+from app.models.routine_session import RoutineSession
+from app.models.slot_assignment import SlotAssignment
 from app.models.user import User
 from app.models.video import Video, VideoStatus

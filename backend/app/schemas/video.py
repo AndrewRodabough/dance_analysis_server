@@ -29,7 +29,7 @@ class VideoResponse(BaseModel):
     """Response body for video metadata."""
 
     id: UUID
-    routine_id: Optional[UUID] = None
+    routine_session_id: Optional[UUID] = None
     uploaded_by: UUID
     storage_key: str
     status: VideoStatus

@@ -213,7 +213,7 @@ def log_storage_operation(
 def log_auth_event(
     action: str,
     email: Optional[str] = None,
-    user_id: Optional[int] = None,
+    user_id: Optional[Any] = None,
     success: bool = True,
     error: Optional[str] = None,
     **extra: Any,

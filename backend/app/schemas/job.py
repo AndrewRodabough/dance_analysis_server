@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,10 +16,10 @@ class JobCreate(BaseModel):
 
 class JobResponse(BaseModel):
     """Schema for job response."""
-    id: int
+    id: UUID
     job_id: str
-    user_id: int
-    video_id: Optional[int] = None
+    user_id: UUID
+    video_id: Optional[UUID] = None
     status: JobStatus
     filename: str
     progress: Optional[int] = 0

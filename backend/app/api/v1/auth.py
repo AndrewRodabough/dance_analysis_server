@@ -229,6 +229,6 @@ def refresh_token(request: Request, response: Response):
         path="/",
     )
 
-    log_auth_event(action="refresh", user_id=int(user_id), success=True)
+    log_auth_event(action="refresh", user_id=user_id, success=True)
 
     return {"access_token": access_token, "token_type": "bearer"}

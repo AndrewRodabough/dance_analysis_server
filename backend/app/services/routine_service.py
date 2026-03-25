@@ -1,6 +1,7 @@
 """Service for managing routine operations."""
 
 from typing import List, Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -9,17 +10,16 @@ from app.schemas.routine import RoutineCreate, RoutineUpdate
 
 
 class RoutinesService:
-    """Service for managing routines scoped to groups."""
+    """Service for managing routines as reusable choreography definitions."""
 
     @staticmethod
     def create_routine(
-        db: Session, group_id: int, user_id: int, data: RoutineCreate
+        db: Session, user_id: UUID, data: RoutineCreate
     ) -> Routine:
-        """Create a routine within a group."""
+        """Create a routine."""
         routine = Routine(
             title=data.title,
             dance_id=data.dance_id,
-            group_id=group_id,
             created_by=user_id,
         )
         db.add(routine)
@@ -28,25 +28,19 @@ class RoutinesService:
         return routine
 
     @staticmethod
-    def list_routines(db: Session, group_id: int) -> List[Routine]:
-        """List all routines in a group."""
+    def list_user_routines(db: Session, user_id: UUID) -> List[Routine]:
+        """List all routines created by a user."""
         return (
             db.query(Routine)
-            .filter(Routine.group_id == group_id)
+            .filter(Routine.created_by == user_id)
             .order_by(Routine.created_at.desc())
             .all()
         )
 
     @staticmethod
-    def get_routine(
-        db: Session, group_id: int, routine_id: int
-    ) -> Optional[Routine]:
-        """Get a routine by ID within a group."""
-        return (
-            db.query(Routine)
-            .filter(Routine.id == routine_id, Routine.group_id == group_id)
-            .first()
-        )
+    def get_by_id(db: Session, routine_id: UUID) -> Optional[Routine]:
+        """Get a routine by ID."""
+        return db.query(Routine).filter(Routine.id == routine_id).first()
 
     @staticmethod
     def update_routine(

@@ -40,9 +40,9 @@ class Note(Base):
         nullable=False,
         index=True,
     )
-    routine_id = Column(
+    routine_session_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("routines.id", ondelete="CASCADE"),
+        ForeignKey("routine_sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -89,7 +89,7 @@ class Note(Base):
 
     # Relationships
     author = relationship("User", backref="notes")
-    routine = relationship("Routine", back_populates="notes")
+    routine_session = relationship("RoutineSession", back_populates="notes")
     video = relationship("Video", back_populates="notes")
 
     def __repr__(self):

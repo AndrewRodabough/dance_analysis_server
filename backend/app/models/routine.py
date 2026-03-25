@@ -11,18 +11,12 @@ from app.database import Base
 
 
 class Routine(Base):
-    """A dance routine scoped to a group."""
+    """A reusable choreography definition."""
 
     __tablename__ = "routines"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     title = Column(String(255), nullable=False)
-    group_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("groups.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    )
     created_by = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -41,21 +35,20 @@ class Routine(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    group = relationship("Group", back_populates="routines")
     creator = relationship("User", backref="created_routines")
     dance = relationship("Dance", backref="routines")
-    videos = relationship(
-        "Video",
+    sessions = relationship(
+        "RoutineSession",
         back_populates="routine",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    notes = relationship(
-        "Note",
+    dancer_slots = relationship(
+        "RoutineDancerSlot",
         back_populates="routine",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
     def __repr__(self):
-        return f"<Routine(id={self.id}, title={self.title}, group_id={self.group_id})>"
+        return f"<Routine(id={self.id}, title={self.title})>"

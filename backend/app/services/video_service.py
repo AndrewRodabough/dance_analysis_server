@@ -1,7 +1,8 @@
-"""Service for managing routine video operations."""
+"""Service for managing session video operations."""
 
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -16,20 +17,20 @@ from app.services.storage import (
 
 
 class VideosService:
-    """Service for managing routine videos with upload lifecycle."""
+    """Service for managing session videos with upload lifecycle."""
 
     @staticmethod
     def register_upload(
         db: Session,
-        routine_id: int,
-        user_id: int,
+        session_id: UUID,
+        user_id: UUID,
         data: VideoRegisterUpload,
     ) -> tuple[Video, str, datetime]:
         """Register a new video upload. Returns (video, upload_url, expires_at)."""
-        storage_key = generate_storage_key(user_id, routine_id, data.filename)
+        storage_key = generate_storage_key(user_id, session_id, data.filename)
 
         video = Video(
-            routine_id=routine_id,
+            routine_session_id=session_id,
             uploaded_by=user_id,
             storage_key=storage_key,
             status=VideoStatus.PENDING_UPLOAD,
@@ -47,7 +48,7 @@ class VideosService:
         return video, upload_url, expires_at
 
     @staticmethod
-    def finalize_upload(db: Session, video: Video, user_id: int) -> Optional[Video]:
+    def finalize_upload(db: Session, video: Video, user_id: UUID) -> Optional[Video]:
         """Mark a pending upload as uploaded. Uploader-only, idempotent.
 
         Returns None if the caller is not the uploader.
@@ -67,17 +68,17 @@ class VideosService:
     @staticmethod
     def list_videos(
         db: Session,
-        routine_id: int,
+        session_id: UUID,
         *,
         status_filter: Optional[VideoStatus] = None,
-        caller_user_id: Optional[int] = None,
+        caller_user_id: Optional[UUID] = None,
     ) -> List[Video]:
-        """List videos for a routine.
+        """List videos for a session.
 
         Default: only uploaded videos.
         If status_filter=pending_upload: only the caller's pending uploads.
         """
-        query = db.query(Video).filter(Video.routine_id == routine_id)
+        query = db.query(Video).filter(Video.routine_session_id == session_id)
 
         if status_filter == VideoStatus.PENDING_UPLOAD:
             # Uploader-private: only show caller's pending uploads
@@ -102,7 +103,7 @@ class VideosService:
 
     @staticmethod
     def soft_delete(db: Session, video: Video) -> bool:
-        """Soft delete a video and migrate its notes to the routine.
+        """Soft delete a video and migrate its notes to session-level.
 
         Sets status=deleted, nullifies video_id on notes, sets video_deleted=True.
         """
@@ -111,7 +112,7 @@ class VideosService:
 
         video.status = VideoStatus.DELETED
 
-        # Migrate associated notes to routine-level
+        # Migrate associated notes to session-level
         notes = (
             db.query(Note)
             .filter(Note.video_id == video.id)

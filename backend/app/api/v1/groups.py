@@ -1,6 +1,7 @@
 """Group management endpoints."""
 
 from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -48,7 +49,7 @@ def list_groups(
 
 @router.get("/{group_id}", response_model=GroupResponse)
 def get_group(
-    group_id: int,
+    group_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -62,7 +63,7 @@ def get_group(
 
 @router.get("/{group_id}/members", response_model=List[GroupMembershipResponse])
 def list_members(
-    group_id: int,
+    group_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -77,7 +78,7 @@ def list_members(
     status_code=status.HTTP_201_CREATED,
 )
 def add_member(
-    group_id: int,
+    group_id: UUID,
     data: AddMemberRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
@@ -96,8 +97,8 @@ def add_member(
 
 @router.delete("/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(
-    group_id: int,
-    user_id: int,
+    group_id: UUID,
+    user_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):

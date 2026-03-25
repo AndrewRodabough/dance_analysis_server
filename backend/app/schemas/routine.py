@@ -31,7 +31,6 @@ class RoutineResponse(RoutineBase):
     """Response body for routine data."""
 
     id: UUID
-    group_id: Optional[UUID] = None
     created_by: UUID
     created_at: datetime
     updated_at: Optional[datetime] = None

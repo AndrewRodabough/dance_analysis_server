@@ -2441,7 +2441,8 @@
       "AddMemberRequest": {
         "properties": {
           "user_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "User Id"
           },
           "role": {
@@ -2528,15 +2529,18 @@
       "GroupInviteResponse": {
         "properties": {
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "group_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Group Id"
           },
           "created_by": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Created By"
           },
           "email": {
@@ -2552,6 +2556,10 @@
                 "type": "null"
               }
             ]
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
           },
           "status": {
             "$ref": "#/components/schemas/GroupInviteStatus"
@@ -2585,6 +2593,7 @@
           "group_id",
           "created_by",
           "email",
+          "token",
           "status",
           "expires_at",
           "created_at"
@@ -2606,11 +2615,13 @@
       "GroupMembershipResponse": {
         "properties": {
           "group_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Group Id"
           },
           "user_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "User Id"
           },
           "role": {
@@ -2639,7 +2650,8 @@
       "GroupResponse": {
         "properties": {
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "name": {
@@ -2658,7 +2670,8 @@
             "title": "Description"
           },
           "created_by": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Created By"
           },
           "is_archived": {
@@ -2861,21 +2874,25 @@
       "NoteResponse": {
         "properties": {
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "author_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Author Id"
           },
           "routine_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Routine Id"
           },
           "video_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"
@@ -2981,7 +2998,8 @@
             "title": "Title"
           },
           "dance_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Dance Id"
           }
         },
@@ -3033,17 +3051,20 @@
             "title": "Title"
           },
           "dance_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Dance Id"
           },
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "group_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"
@@ -3052,7 +3073,8 @@
             "title": "Group Id"
           },
           "created_by": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Created By"
           },
           "created_at": {
@@ -3102,7 +3124,8 @@
           "dance_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"
@@ -3205,7 +3228,8 @@
             "title": "Username"
           },
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "is_active": {
@@ -3271,7 +3295,8 @@
       "VideoDownloadResponse": {
         "properties": {
           "video_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Video Id"
           },
           "download_url": {
@@ -3395,13 +3420,15 @@
       "VideoResponse": {
         "properties": {
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "routine_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"
@@ -3410,7 +3437,8 @@
             "title": "Routine Id"
           },
           "uploaded_by": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Uploaded By"
           },
           "storage_key": {
@@ -3445,7 +3473,7 @@
           "duration": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"

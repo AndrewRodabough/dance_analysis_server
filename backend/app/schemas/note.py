@@ -31,7 +31,7 @@ class NoteResponse(BaseModel):
 
     id: UUID
     author_id: UUID
-    routine_id: UUID
+    routine_session_id: UUID
     video_id: Optional[UUID] = None
     video_deleted: bool = False
     video_timestamp_ms: Optional[int] = None

@@ -1,6 +1,8 @@
 """Storage abstraction for presigned URL generation and object operations."""
 
 import uuid
+from typing import Any
+from uuid import UUID
 
 import boto3
 from botocore.client import Config
@@ -36,16 +38,16 @@ def _get_minio_client():
     )
 
 
-def generate_storage_key(user_id: int, routine_id: int, filename: str) -> str:
+def generate_storage_key(user_id: Any, session_id: Any, filename: str) -> str:
     """Generate a deterministic but non-guessable storage key.
 
-    Format: routine-videos/{routine_id}/{uuid}/{sanitized_suffix}
+    Format: session-videos/{session_id}/{user_id}-{unique}{ext}
     The original filename is NOT leaked into the key; only the extension is kept.
     """
     import os
     ext = os.path.splitext(filename)[1].lower() or ".bin"
     unique = uuid.uuid4().hex[:16]
-    return f"routine-videos/{routine_id}/{user_id}-{unique}{ext}"
+    return f"session-videos/{session_id}/{user_id}-{unique}{ext}"
 
 
 def create_presigned_put_url(

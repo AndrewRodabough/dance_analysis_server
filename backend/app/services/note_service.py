@@ -1,6 +1,7 @@
 """Service for managing note operations."""
 
 from typing import List
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -9,15 +10,15 @@ from app.schemas.note import RoutineNoteCreate, VideoNoteCreate
 
 
 class NotesService:
-    """Service for managing notes on routines and videos."""
+    """Service for managing notes on sessions and videos."""
 
     @staticmethod
-    def create_routine_note(
-        db: Session, routine_id: int, author_id: int, data: RoutineNoteCreate
+    def create_session_note(
+        db: Session, session_id: UUID, author_id: UUID, data: RoutineNoteCreate
     ) -> Note:
-        """Create a routine-level note."""
+        """Create a session-level note."""
         note = Note(
-            routine_id=routine_id,
+            routine_session_id=session_id,
             author_id=author_id,
             note_type=data.note_type,
             contents=data.contents,
@@ -32,14 +33,14 @@ class NotesService:
     @staticmethod
     def create_video_note(
         db: Session,
-        routine_id: int,
-        video_id: int,
-        author_id: int,
+        session_id: UUID,
+        video_id: UUID,
+        author_id: UUID,
         data: VideoNoteCreate,
     ) -> Note:
         """Create a video note with optional timestamp."""
         note = Note(
-            routine_id=routine_id,
+            routine_session_id=session_id,
             video_id=video_id,
             author_id=author_id,
             note_type=data.note_type,
@@ -54,17 +55,17 @@ class NotesService:
         return note
 
     @staticmethod
-    def list_routine_notes(db: Session, routine_id: int) -> List[Note]:
-        """List all notes for a routine (including migrated video notes)."""
+    def list_session_notes(db: Session, session_id: UUID) -> List[Note]:
+        """List all notes for a session (including migrated video notes)."""
         return (
             db.query(Note)
-            .filter(Note.routine_id == routine_id)
+            .filter(Note.routine_session_id == session_id)
             .order_by(Note.created_at.desc())
             .all()
         )
 
     @staticmethod
-    def list_video_notes(db: Session, video_id: int) -> List[Note]:
+    def list_video_notes(db: Session, video_id: UUID) -> List[Note]:
         """List all notes for a specific video."""
         return (
             db.query(Note)
@@ -74,11 +75,11 @@ class NotesService:
         )
 
     @staticmethod
-    def delete_note(db: Session, note_id: int, routine_id: int) -> bool:
+    def delete_note(db: Session, note_id: UUID, session_id: UUID) -> bool:
         """Delete a note. Returns True if deleted."""
         note = (
             db.query(Note)
-            .filter(Note.id == note_id, Note.routine_id == routine_id)
+            .filter(Note.id == note_id, Note.routine_session_id == session_id)
             .first()
         )
         if not note:

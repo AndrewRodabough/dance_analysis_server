@@ -26,9 +26,9 @@ class Video(Base):
     __tablename__ = "videos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    routine_id = Column(
+    routine_session_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("routines.id", ondelete="CASCADE"),
+        ForeignKey("routine_sessions.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -62,13 +62,13 @@ class Video(Base):
     content_type = Column(String(100), nullable=True)
 
     # Relationships
-    routine = relationship("Routine", back_populates="videos")
+    routine_session = relationship("RoutineSession", back_populates="videos")
     uploader = relationship("User", backref="uploaded_videos")
     jobs = relationship("Job", back_populates="video")
     notes = relationship("Note", back_populates="video")
 
     def __repr__(self) -> str:
         return (
-            f"<Video(id={self.id}, routine_id={self.routine_id}, "
+            f"<Video(id={self.id}, routine_session_id={self.routine_session_id}, "
             f"uploaded_by={self.uploaded_by}, status={self.status})>"
         )

@@ -1,6 +1,7 @@
 """Service for managing group operations."""
 
 from typing import List, Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +36,7 @@ class GroupsService:
         return group
 
     @staticmethod
-    def list_user_groups(db: Session, user_id: int) -> List[Group]:
+    def list_user_groups(db: Session, user_id: UUID) -> List[Group]:
         """List all groups the user is an active member of."""
         return (
             db.query(Group)
@@ -49,12 +50,12 @@ class GroupsService:
         )
 
     @staticmethod
-    def get_group(db: Session, group_id: int) -> Optional[Group]:
+    def get_group(db: Session, group_id: UUID) -> Optional[Group]:
         """Get a group by ID."""
         return db.query(Group).filter(Group.id == group_id).first()
 
     @staticmethod
-    def list_members(db: Session, group_id: int) -> List[GroupMembership]:
+    def list_members(db: Session, group_id: UUID) -> List[GroupMembership]:
         """List all active memberships for a group."""
         return (
             db.query(GroupMembership)
@@ -67,7 +68,7 @@ class GroupsService:
 
     @staticmethod
     def add_member(
-        db: Session, group_id: int, data: AddMemberRequest
+        db: Session, group_id: UUID, data: AddMemberRequest
     ) -> GroupMembership:
         """Add a member to a group."""
         existing = (
@@ -97,7 +98,7 @@ class GroupsService:
         return membership
 
     @staticmethod
-    def remove_member(db: Session, group_id: int, target_user_id: int) -> bool:
+    def remove_member(db: Session, group_id: UUID, target_user_id: UUID) -> bool:
         """Remove a member from a group. Returns True if removed."""
         membership = (
             db.query(GroupMembership)

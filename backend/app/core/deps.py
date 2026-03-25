@@ -1,5 +1,7 @@
 """FastAPI dependencies for authentication and authorization."""
 
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -35,13 +37,13 @@ def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    user_id: Optional[int] = payload.get("sub")
-    if user_id is None:
+    user_id_str: Optional[str] = payload.get("sub")
+    if user_id_str is None:
         raise credentials_exception
 
-    # Convert to int if it's a string
+    # Convert to UUID
     try:
-        user_id = int(user_id)
+        user_id = UUID(user_id_str)
     except (TypeError, ValueError):
         raise credentials_exception
 

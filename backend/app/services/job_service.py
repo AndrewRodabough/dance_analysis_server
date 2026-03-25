@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -23,7 +24,7 @@ class JobService:
     @staticmethod
     def create_job(
         db: Session,
-        user_id: int,
+        user_id: UUID,
         job_data: JobCreate,
         video_storage_key: Optional[str] = None,
     ) -> Job:
@@ -63,7 +64,7 @@ class JobService:
         return new_job
 
     @staticmethod
-    def get_job_by_id(db: Session, job_id: str, user_id: Optional[int] = None) -> Optional[Job]:
+    def get_job_by_id(db: Session, job_id: str, user_id: Optional[UUID] = None) -> Optional[Job]:
         """
         Retrieve a job by its public UUID, optionally enforcing ownership.
 
@@ -83,7 +84,7 @@ class JobService:
     @staticmethod
     def get_user_jobs(
         db: Session,
-        user_id: int,
+        user_id: UUID,
         status: Optional[JobStatus] = None,
         limit: int = 50,
         offset: int = 0,
@@ -189,7 +190,7 @@ class JobService:
         return job
 
     @staticmethod
-    def delete_job(db: Session, job_id: str, user_id: int) -> bool:
+    def delete_job(db: Session, job_id: str, user_id: UUID) -> bool:
         """
         Delete a job if it is owned by the requesting user.
 
@@ -225,7 +226,7 @@ class JobService:
     # Private helpers
     # -------------------------------------------------------------------------
     @staticmethod
-    def _get_or_create_video(db: Session, owner_id: int, storage_key: Optional[str]) -> Optional[Video]:
+    def _get_or_create_video(db: Session, owner_id: UUID, storage_key: Optional[str]) -> Optional[Video]:
         """
         Deduplicate video rows by storage key.
         """
