@@ -15,7 +15,8 @@ from app.core.security import (
 from app.database import get_db
 from app.models.user import User
 from app.schemas.token import Token
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.schemas.user import UserCreate, UserLogin, UserResponse, RegisterWithInviteRequest
+from app.services.group_invite_service import GroupInvitesService
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
@@ -68,6 +69,73 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     log_auth_event(action="register", email=user_data.email, user_id=new_user.id, success=True)
 
     return new_user
+
+
+@router.post("/register-with-invite", response_model=Token, status_code=status.HTTP_201_CREATED)
+def register_with_invite(
+    data: RegisterWithInviteRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """
+    Register a new account and accept a group invite in one step.
+
+    - **token**: The invite token from the invite link
+    - **username**: Username between 3-50 characters (unique)
+    - **password**: Password at least 8 characters
+
+    The email is taken from the invite — it cannot be changed.
+    Returns auth tokens so the user is immediately logged in.
+    """
+    # Validate the invite first so we fail fast before creating anything
+    invite = GroupInvitesService.lookup_invite(db, data.token)
+
+    # Re-fetch the raw invite to get the email (lookup returns a response schema)
+    from app.models.group import GroupInvite, GroupInviteStatus
+    raw_invite = db.query(GroupInvite).filter(GroupInvite.token == data.token).first()
+
+    email = raw_invite.email
+
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    if db.query(User).filter(User.username == data.username).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+
+    new_user = User(
+        email=email,
+        username=data.username,
+        hashed_password=get_password_hash(data.password),
+        is_active=True,
+        is_superuser=False,
+    )
+    db.add(new_user)
+    db.flush()
+
+    GroupInvitesService.accept_invite(db, data.token, new_user)
+
+    log_auth_event(action="register_with_invite", email=email, user_id=new_user.id, success=True)
+
+    access_token = create_access_token(
+        data={"sub": str(new_user.id)},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    refresh_token_expires = timedelta(days=getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7))
+    new_refresh_token = create_refresh_token(
+        data={"sub": str(new_user.id)},
+        expires_delta=refresh_token_expires,
+    )
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE_NAME,
+        value=new_refresh_token,
+        httponly=True,
+        secure=getattr(settings, "COOKIE_SECURE", False),
+        samesite=getattr(settings, "COOKIE_SAMESITE", "lax"),
+        max_age=int(refresh_token_expires.total_seconds()),
+        path="/",
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/login", response_model=Token)

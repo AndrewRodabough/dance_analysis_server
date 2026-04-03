@@ -1,5 +1,7 @@
 """Group invite management endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
@@ -12,10 +14,27 @@ from app.schemas.group_invite import (
     AcceptInviteRequest,
     GroupInviteCreate,
     GroupInviteResponse,
+    InviteLookupResponse,
 )
 from app.services.group_invite_service import GroupInvitesService
 
 router = APIRouter()
+
+
+@router.get(
+    "/group-invites/lookup",
+    response_model=InviteLookupResponse,
+)
+def lookup_invite(token: str, db: Session = Depends(get_db)):
+    """
+    Look up public invite details by token. No authentication required.
+
+    Used by the invite landing page to display group and inviter info
+    before the user logs in or registers.
+
+    Returns 404 for invalid, expired, or revoked tokens.
+    """
+    return GroupInvitesService.lookup_invite(db, token)
 
 
 @router.post(
@@ -24,7 +43,7 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
 )
 def create_invite(
-    group_id: int,
+    group_id: UUID,
     data: GroupInviteCreate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),

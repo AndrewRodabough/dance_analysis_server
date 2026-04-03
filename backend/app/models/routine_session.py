@@ -11,7 +11,7 @@ from app.database import Base
 
 
 class RoutineSession(Base):
-    """An instance of a routine used in a specific context (e.g. a group practice)."""
+    """An instance of a routine used in a specific context."""
 
     __tablename__ = "routine_sessions"
 
@@ -22,13 +22,13 @@ class RoutineSession(Base):
         nullable=False,
         index=True,
     )
-    group_id = Column(
+    created_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("groups.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
-    created_by = Column(
+    owner_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -42,8 +42,12 @@ class RoutineSession(Base):
 
     # Relationships
     routine = relationship("Routine", back_populates="sessions")
-    group = relationship("Group", back_populates="routine_sessions")
-    creator = relationship("User", backref="created_routine_sessions")
+    creator = relationship(
+        "User", foreign_keys=[created_by], backref="created_routine_sessions"
+    )
+    owner = relationship(
+        "User", foreign_keys=[owner_id], backref="owned_routine_sessions"
+    )
     slot_assignments = relationship(
         "SlotAssignment",
         back_populates="routine_session",
@@ -62,6 +66,24 @@ class RoutineSession(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    access_records = relationship(
+        "SessionAccess",
+        back_populates="routine_session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    participants = relationship(
+        "SessionParticipant",
+        back_populates="routine_session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    user_states = relationship(
+        "SessionUserState",
+        back_populates="routine_session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self):
-        return f"<RoutineSession(id={self.id}, routine_id={self.routine_id}, group_id={self.group_id})>"
+        return f"<RoutineSession(id={self.id}, routine_id={self.routine_id}, owner_id={self.owner_id})>"

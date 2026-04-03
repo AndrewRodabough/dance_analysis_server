@@ -30,3 +30,9 @@ class UserResponse(UserBase):
 
 class UserInDB(UserResponse):
     hashed_password: str
+
+
+class RegisterWithInviteRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8, max_length=100)

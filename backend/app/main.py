@@ -1,9 +1,11 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import (
     analyze,
     auth,
     dancer_slots,
+    dances,
     group_invites,
     groups,
     health,
@@ -17,6 +19,7 @@ from app.api.v1 import (
 )
 
 # Note: legacy invite router removed; group_invites replaces it
+from app.core.config import settings
 from app.core.logging import setup_logging
 from app.middleware.logging import RequestLoggingMiddleware
 
@@ -36,6 +39,14 @@ def create_app() -> FastAPI:
     # Add request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Core routes
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -43,6 +54,9 @@ def create_app() -> FastAPI:
     # Groups, memberships, and invites
     app.include_router(groups.router, prefix="/api/v1/groups", tags=["groups"])
     app.include_router(group_invites.router, prefix="/api/v1", tags=["group-invites"])
+
+    # Dances
+    app.include_router(dances.router, prefix="/api/v1/dances", tags=["dances"])
 
     # Routines (top-level, user-owned)
     app.include_router(

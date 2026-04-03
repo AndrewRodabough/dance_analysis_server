@@ -35,7 +35,9 @@ class GroupMembershipResponse(BaseModel):
 
     group_id: UUID
     user_id: UUID
+    username: str
     role: GroupRole
+    isAdmin: bool
     status: MembershipStatus
     created_at: datetime
 
@@ -47,3 +49,10 @@ class AddMemberRequest(BaseModel):
 
     user_id: UUID
     role: GroupRole = GroupRole.MEMBER
+    isAdmin: bool = False
+
+
+class AddAdminRequest(AddMemberRequest):
+    """Request body for promoting a member to an admin"""
+
+    isAdmin: bool = True

@@ -84,20 +84,20 @@ Constraint: `(routine_session_id, dancer_slot_id)` must be unique (one user per 
 
 ## 3) API Contract Changes
 
-> The backend routes and schemas have not been updated yet. This section describes the **expected** shape of the new API once route refactoring is complete. Use this as a planning reference.
+All routes described in this section are **live**. Client work can begin.
 
 ### 3a) Routines (no longer group-scoped)
 
-Routines become a top-level resource since they are no longer owned by a group.
+Routines are a top-level resource and are no longer owned by a group.
 
-**Expected new routes:**
+**Routes:**
 - `POST /api/v1/routines` — Create a routine (creator becomes owner)
-- `GET /api/v1/routines` — List routines created by or accessible to the current user
+- `GET /api/v1/routines` — List routines created by the current user
 - `GET /api/v1/routines/{routine_id}` — Get routine detail
 - `PATCH /api/v1/routines/{routine_id}` — Update a routine
 - `DELETE /api/v1/routines/{routine_id}` — Delete a routine
 
-**Removed routes (or to be refactored):**
+**Removed routes:**
 - `POST /api/v1/groups/{group_id}/routines` — replaced by top-level create + session create
 - `GET /api/v1/groups/{group_id}/routines` — replaced by listing sessions for a group
 
@@ -109,7 +109,7 @@ Routines become a top-level resource since they are no longer owned by a group.
 
 Sessions are the group-scoped instance of a routine.
 
-**Expected new routes:**
+**Routes:**
 - `POST /api/v1/routines/{routine_id}/sessions` — Create a session for a routine
   - Request body: `{ group_id?: UUID, label?: string }`
 - `GET /api/v1/routines/{routine_id}/sessions` — List sessions for a routine
@@ -132,7 +132,7 @@ Sessions are the group-scoped instance of a routine.
 
 ### 3c) Dancer Slots (new resource)
 
-**Expected new routes:**
+**Routes:**
 - `POST /api/v1/routines/{routine_id}/slots` — Create a dancer slot
   - Request body: `{ label: string, order_index?: int }`
 - `GET /api/v1/routines/{routine_id}/slots` — List slots for a routine
@@ -151,7 +151,7 @@ Sessions are the group-scoped instance of a routine.
 
 ### 3d) Slot Assignments (new resource)
 
-**Expected new routes:**
+**Routes:**
 - `POST /api/v1/sessions/{session_id}/assignments` — Assign a user to a slot
   - Request body: `{ dancer_slot_id: UUID, user_id: UUID }`
 - `GET /api/v1/sessions/{session_id}/assignments` — List assignments for a session
@@ -178,10 +178,14 @@ Videos and Notes now belong to a session, not a routine directly.
 /api/v1/groups/{group_id}/routines/{routine_id}/notes
 ```
 
-**New URL pattern (expected):**
+**New URL pattern:**
 ```
 /api/v1/sessions/{session_id}/videos
+/api/v1/sessions/{session_id}/videos/{video_id}
+/api/v1/sessions/{session_id}/videos/{video_id}/finalize
+/api/v1/sessions/{session_id}/videos/{video_id}/download
 /api/v1/sessions/{session_id}/notes
+/api/v1/sessions/{session_id}/notes/{note_id}
 /api/v1/sessions/{session_id}/videos/{video_id}/notes
 ```
 
@@ -257,14 +261,13 @@ The client uses generated API models from `generated/api/`. After the backend Op
 
 ## 5) Migration Path (Client)
 
-This is a **breaking change** to the API contract. Recommended migration approach:
+This is a **breaking change** to the API contract. The backend is complete — client work can begin now.
 
-1. **Wait for backend route/schema updates** — The backend models have been updated but the API routes and Pydantic schemas still reference old field names. Do not start client work until the OpenAPI spec reflects the new contract.
-2. **Regenerate API client** — Once the backend OpenAPI spec is updated, regenerate the Dart API client to pick up new models and endpoints.
-3. **Refactor data sources** — Update existing data sources and create new ones for sessions/slots/assignments.
-4. **Refactor controllers and state** — Update to use session-based operations.
-5. **Refactor UI** — Update pages, widgets, and navigation to reflect the session-based hierarchy.
-6. **Test** — Verify all existing flows still work through the new session layer.
+1. **Regenerate API client** — Regenerate the Dart API client from the updated OpenAPI spec to pick up new models and endpoints.
+2. **Refactor data sources** — Update existing data sources and create new ones for sessions/slots/assignments.
+3. **Refactor controllers and state** — Update to use session-based operations.
+4. **Refactor UI** — Update pages, widgets, and navigation to reflect the session-based hierarchy.
+5. **Test** — Verify all existing flows still work through the new session layer.
 
 ---
 

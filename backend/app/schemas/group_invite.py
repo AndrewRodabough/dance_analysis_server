@@ -40,3 +40,12 @@ class AcceptInviteRequest(BaseModel):
     """Request body for accepting a group invite by token."""
 
     token: str = Field(..., min_length=1)
+
+
+class InviteLookupResponse(BaseModel):
+    """Public invite details returned before authentication."""
+
+    group_name: str
+    invited_by: str
+    role: Optional[GroupRole]
+    expires_at: datetime

@@ -15,7 +15,6 @@ from app.database import Base
 class GroupRole(str, PyEnum):
     """Role within a group."""
 
-    OWNER = "owner"
     COACH = "coach"
     MEMBER = "member"
 
@@ -97,6 +96,8 @@ class GroupMembership(Base):
         primary_key=True,
         index=True,
     )
+    isAdmin = Column(Boolean, nullable=False, default=False)
+
     role = Column(
         SQLEnum(
             GroupRole,
@@ -120,6 +121,10 @@ class GroupMembership(Base):
     # Relationships
     group = relationship("Group", back_populates="memberships")
     user = relationship("User", backref="group_memberships")
+
+    @property
+    def username(self) -> str:
+        return self.user.username
 
     def __repr__(self):
         return f"<GroupMembership(group_id={self.group_id}, user_id={self.user_id}, role={self.role})>"

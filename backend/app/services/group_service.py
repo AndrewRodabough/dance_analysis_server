@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.group import Group, GroupMembership, GroupRole, MembershipStatus
 from app.models.user import User
-from app.schemas.group import AddMemberRequest, GroupCreate
+from app.schemas.group import AddAdminRequest, AddMemberRequest, GroupCreate
 
 
 class GroupsService:
@@ -15,7 +15,7 @@ class GroupsService:
 
     @staticmethod
     def create_group(db: Session, user: User, data: GroupCreate) -> Group:
-        """Create a new group and add the creator as owner."""
+        """Create a new group and add the creator as admin."""
         group = Group(
             name=data.name,
             description=data.description,
@@ -27,7 +27,8 @@ class GroupsService:
         membership = GroupMembership(
             group_id=group.id,
             user_id=user.id,
-            role=GroupRole.OWNER,
+            role=GroupRole.MEMBER,
+            isAdmin=True,
             status=MembershipStatus.ACTIVE,
         )
         db.add(membership)
@@ -82,6 +83,7 @@ class GroupsService:
         if existing:
             existing.status = MembershipStatus.ACTIVE
             existing.role = data.role
+            existing.isAdmin = getattr(data, "isAdmin", False)
             db.commit()
             db.refresh(existing)
             return existing
@@ -90,6 +92,7 @@ class GroupsService:
             group_id=group_id,
             user_id=data.user_id,
             role=data.role,
+            isAdmin=getattr(data, "isAdmin", False),
             status=MembershipStatus.ACTIVE,
         )
         db.add(membership)

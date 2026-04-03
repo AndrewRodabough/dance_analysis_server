@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,7 +23,7 @@ class DanceCreate(DanceBase):
 
 class DanceResponse(DanceBase):
     """Response body for dance data."""
-    id: int
+    id: UUID
     created_at: datetime
     updated_at: Optional[datetime] = None
 

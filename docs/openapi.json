@@ -301,7 +301,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
           }
@@ -349,7 +350,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
           }
@@ -399,7 +401,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
           }
@@ -457,7 +460,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
           },
@@ -466,7 +470,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "User Id"
             }
           }
@@ -507,7 +512,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
           }
@@ -593,14 +599,90 @@
         ]
       }
     },
-    "/api/v1/groups/{group_id}/routines": {
+    "/api/v1/dances": {
+      "get": {
+        "tags": [
+          "dances"
+        ],
+        "summary": "List Dances",
+        "description": "List all available dance definitions.",
+        "operationId": "list_dances_api_v1_dances_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DanceResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Dances Api V1 Dances Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
       "post": {
         "tags": [
-          "routines"
+          "dances"
         ],
-        "summary": "Create Routine",
-        "description": "Create a routine within a group.\n\n- **title**: Routine title (1-255 characters)\n- **dance_id**: ID of the dance",
-        "operationId": "create_routine_api_v1_groups__group_id__routines_post",
+        "summary": "Create Dance",
+        "description": "Create a dance definition.\n\n- **style**: Dance style (e.g. waltz, tango)\n- **tempo**: Tempo in BPM\n- **meter**: Time signature (e.g. 3/4, 4/4)",
+        "operationId": "create_dance_api_v1_dances_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dances/{dance_id}": {
+      "get": {
+        "tags": [
+          "dances"
+        ],
+        "summary": "Get Dance",
+        "description": "Get a dance definition by ID.",
+        "operationId": "get_dance_api_v1_dances__dance_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -608,24 +690,86 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "dance_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Dance Id"
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routines": {
+      "get": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "List Routines",
+        "description": "List all routines created by the current user.",
+        "operationId": "list_routines_api_v1_routines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Routines Api V1 Routines Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "routines"
+        ],
+        "summary": "Create Routine",
+        "description": "Create a routine.\n\n- **title**: Routine title (1-255 characters)\n- **dance_id**: ID of the dance",
+        "operationId": "create_routine_api_v1_routines_post",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RoutineCreate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -648,67 +792,22 @@
               }
             }
           }
-        }
-      },
-      "get": {
-        "tags": [
-          "routines"
-        ],
-        "summary": "List Routines",
-        "description": "List all routines in a group. Requires membership.",
-        "operationId": "list_routines_api_v1_groups__group_id__routines_get",
+        },
         "security": [
           {
             "HTTPBearer": []
           }
-        ],
-        "parameters": [
-          {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RoutineResponse"
-                  },
-                  "title": "Response List Routines Api V1 Groups  Group Id  Routines Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
+        ]
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}": {
+    "/api/v1/routines/{routine_id}": {
       "get": {
         "tags": [
           "routines"
         ],
         "summary": "Get Routine",
-        "description": "Get a specific routine. Requires membership.",
-        "operationId": "get_routine_api_v1_groups__group_id__routines__routine_id__get",
+        "description": "Get a specific routine. Requires ownership.",
+        "operationId": "get_routine_api_v1_routines__routine_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -716,20 +815,12 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
             "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Routine Id"
             }
           }
@@ -762,8 +853,8 @@
           "routines"
         ],
         "summary": "Update Routine",
-        "description": "Update a routine. Requires membership.",
-        "operationId": "update_routine_api_v1_groups__group_id__routines__routine_id__patch",
+        "description": "Update a routine. Requires ownership.",
+        "operationId": "update_routine_api_v1_routines__routine_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -771,20 +862,12 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
             "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Routine Id"
             }
           }
@@ -827,8 +910,8 @@
           "routines"
         ],
         "summary": "Delete Routine",
-        "description": "Delete a routine. Requires membership.",
-        "operationId": "delete_routine_api_v1_groups__group_id__routines__routine_id__delete",
+        "description": "Delete a routine. Requires ownership.",
+        "operationId": "delete_routine_api_v1_routines__routine_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -836,20 +919,12 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
             "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Routine Id"
             }
           }
@@ -871,14 +946,124 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/videos": {
+    "/api/v1/routines/{routine_id}/sessions": {
       "post": {
         "tags": [
-          "routine-videos"
+          "routine-sessions"
         ],
-        "summary": "Register Upload",
-        "description": "Register a new video upload.\n\nReturns a presigned PUT URL for the client to upload the file directly.\n\n- **filename**: Name of the video file\n- **content_type**: MIME type (default: video/mp4)\n- **file_size**: Optional file size in bytes",
-        "operationId": "register_upload_api_v1_groups__group_id__routines__routine_id__videos_post",
+        "summary": "Create Session",
+        "description": "Create a session for a routine.\n\n- **group_id**: Optional group to scope the session to\n- **label**: Optional human-friendly label",
+        "operationId": "create_session_api_v1_routines__routine_id__sessions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineSessionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "routine-sessions"
+        ],
+        "summary": "List Routine Sessions",
+        "description": "List all sessions for a routine.",
+        "operationId": "list_routine_sessions_api_v1_routines__routine_id__sessions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineSessionResponse"
+                  },
+                  "title": "Response List Routine Sessions Api V1 Routines  Routine Id  Sessions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/sessions": {
+      "get": {
+        "tags": [
+          "routine-sessions"
+        ],
+        "summary": "List Group Sessions",
+        "description": "List all sessions within a group. Requires membership.",
+        "operationId": "list_group_sessions_api_v1_groups__group_id__sessions_get",
         "security": [
           {
             "HTTPBearer": []
@@ -890,17 +1075,475 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Group Id"
             }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineSessionResponse"
+                  },
+                  "title": "Response List Group Sessions Api V1 Groups  Group Id  Sessions Get"
+                }
+              }
+            }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "routine-sessions"
+        ],
+        "summary": "Get Session",
+        "description": "Get a specific session. Requires access.",
+        "operationId": "get_session_api_v1_sessions__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "routine-sessions"
+        ],
+        "summary": "Delete Session",
+        "description": "Delete a session. Requires access.",
+        "operationId": "delete_session_api_v1_sessions__session_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routines/{routine_id}/slots": {
+      "post": {
+        "tags": [
+          "dancer-slots"
+        ],
+        "summary": "Create Slot",
+        "description": "Create a dancer slot for a routine.\n\n- **label**: Slot label (e.g. \"A\", \"B\", \"Lead\")\n- **order_index**: Optional ordering hint",
+        "operationId": "create_slot_api_v1_routines__routine_id__slots_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
           {
             "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Routine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineDancerSlotCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineDancerSlotResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "dancer-slots"
+        ],
+        "summary": "List Slots",
+        "description": "List all dancer slots for a routine.",
+        "operationId": "list_slots_api_v1_routines__routine_id__slots_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Routine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineDancerSlotResponse"
+                  },
+                  "title": "Response List Slots Api V1 Routines  Routine Id  Slots Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routines/{routine_id}/slots/{slot_id}": {
+      "delete": {
+        "tags": [
+          "dancer-slots"
+        ],
+        "summary": "Delete Slot",
+        "description": "Delete a dancer slot. Requires routine ownership.",
+        "operationId": "delete_slot_api_v1_routines__routine_id__slots__slot_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Routine Id"
+            }
+          },
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Slot Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/assignments": {
+      "post": {
+        "tags": [
+          "slot-assignments"
+        ],
+        "summary": "Create Assignment",
+        "description": "Assign a user to a dancer slot for a session.\n\n- **dancer_slot_id**: The slot to assign\n- **user_id**: The user to assign to the slot",
+        "operationId": "create_assignment_api_v1_sessions__session_id__assignments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotAssignmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "slot-assignments"
+        ],
+        "summary": "List Assignments",
+        "description": "List all slot assignments for a session.",
+        "operationId": "list_assignments_api_v1_sessions__session_id__assignments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SlotAssignmentResponse"
+                  },
+                  "title": "Response List Assignments Api V1 Sessions  Session Id  Assignments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/assignments/{assignment_id}": {
+      "delete": {
+        "tags": [
+          "slot-assignments"
+        ],
+        "summary": "Delete Assignment",
+        "description": "Remove a slot assignment. Requires session access.",
+        "operationId": "delete_assignment_api_v1_sessions__session_id__assignments__assignment_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/videos": {
+      "post": {
+        "tags": [
+          "session-videos"
+        ],
+        "summary": "Register Upload",
+        "description": "Register a new video upload.\n\nReturns a presigned PUT URL for the client to upload the file directly.\n\n- **filename**: Name of the video file\n- **content_type**: MIME type (default: video/mp4)\n- **file_size**: Optional file size in bytes",
+        "operationId": "register_upload_api_v1_sessions__session_id__videos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           }
         ],
@@ -939,11 +1582,11 @@
       },
       "get": {
         "tags": [
-          "routine-videos"
+          "session-videos"
         ],
         "summary": "List Videos",
-        "description": "List videos for a routine.\n\nDefault: only uploaded videos (visible to all group members).\nPass ?status=pending_upload to see your own pending uploads.",
-        "operationId": "list_videos_api_v1_groups__group_id__routines__routine_id__videos_get",
+        "description": "List videos for a session.\n\nDefault: only uploaded videos (visible to all session members).\nPass ?status=pending_upload to see your own pending uploads.",
+        "operationId": "list_videos_api_v1_sessions__session_id__videos_get",
         "security": [
           {
             "HTTPBearer": []
@@ -951,21 +1594,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -997,7 +1632,7 @@
                   "items": {
                     "$ref": "#/components/schemas/VideoResponse"
                   },
-                  "title": "Response List Videos Api V1 Groups  Group Id  Routines  Routine Id  Videos Get"
+                  "title": "Response List Videos Api V1 Sessions  Session Id  Videos Get"
                 }
               }
             }
@@ -1015,14 +1650,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}": {
+    "/api/v1/sessions/{session_id}/videos/{video_id}": {
       "get": {
         "tags": [
-          "routine-videos"
+          "session-videos"
         ],
         "summary": "Get Video",
         "description": "Get video metadata. Deleted videos return 404.",
-        "operationId": "get_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__get",
+        "operationId": "get_video_api_v1_sessions__session_id__videos__video_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -1030,21 +1665,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1052,7 +1679,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1082,11 +1710,11 @@
       },
       "delete": {
         "tags": [
-          "routine-videos"
+          "session-videos"
         ],
         "summary": "Delete Video",
-        "description": "Soft delete a video.\n\nSets status=deleted and migrates associated notes to routine-level.",
-        "operationId": "delete_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__delete",
+        "description": "Soft delete a video.\n\nSets status=deleted and migrates associated notes to session-level.",
+        "operationId": "delete_video_api_v1_sessions__session_id__videos__video_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1094,21 +1722,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1116,7 +1736,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1138,14 +1759,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/finalize": {
+    "/api/v1/sessions/{session_id}/videos/{video_id}/finalize": {
       "post": {
         "tags": [
-          "routine-videos"
+          "session-videos"
         ],
         "summary": "Finalize Upload",
         "description": "Mark a video upload as complete.\n\nOnly the uploader can finalize their pending upload (idempotent).",
-        "operationId": "finalize_upload_api_v1_groups__group_id__routines__routine_id__videos__video_id__finalize_post",
+        "operationId": "finalize_upload_api_v1_sessions__session_id__videos__video_id__finalize_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1153,21 +1774,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1175,7 +1788,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1204,14 +1818,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/download": {
+    "/api/v1/sessions/{session_id}/videos/{video_id}/download": {
       "get": {
         "tags": [
-          "routine-videos"
+          "session-videos"
         ],
         "summary": "Download Video",
         "description": "Get a presigned download URL. Only works for uploaded videos.",
-        "operationId": "download_video_api_v1_groups__group_id__routines__routine_id__videos__video_id__download_get",
+        "operationId": "download_video_api_v1_sessions__session_id__videos__video_id__download_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1219,21 +1833,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1241,7 +1847,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1270,14 +1877,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/notes": {
+    "/api/v1/sessions/{session_id}/notes": {
       "post": {
         "tags": [
           "notes"
         ],
-        "summary": "Create Routine Note",
-        "description": "Create a routine-level note.\n\n- **note_type**: Type of note (critique, feedback, complement)\n- **contents**: Note contents\n- **details**: Optional structured data (JSON)",
-        "operationId": "create_routine_note_api_v1_groups__group_id__routines__routine_id__notes_post",
+        "summary": "Create Session Note",
+        "description": "Create a session-level note.\n\n- **note_type**: Type of note (critique, feedback, complement)\n- **contents**: Note contents\n- **details**: Optional structured data (JSON)",
+        "operationId": "create_session_note_api_v1_sessions__session_id__notes_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1285,21 +1892,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           }
         ],
@@ -1340,9 +1939,9 @@
         "tags": [
           "notes"
         ],
-        "summary": "List Routine Notes",
-        "description": "List all notes for a routine (including migrated video notes).",
-        "operationId": "list_routine_notes_api_v1_groups__group_id__routines__routine_id__notes_get",
+        "summary": "List Session Notes",
+        "description": "List all notes for a session (including migrated video notes).",
+        "operationId": "list_session_notes_api_v1_sessions__session_id__notes_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1350,21 +1949,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           }
         ],
@@ -1378,7 +1969,7 @@
                   "items": {
                     "$ref": "#/components/schemas/NoteResponse"
                   },
-                  "title": "Response List Routine Notes Api V1 Groups  Group Id  Routines  Routine Id  Notes Get"
+                  "title": "Response List Session Notes Api V1 Sessions  Session Id  Notes Get"
                 }
               }
             }
@@ -1396,14 +1987,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/notes/{note_id}": {
+    "/api/v1/sessions/{session_id}/notes/{note_id}": {
       "delete": {
         "tags": [
           "notes"
         ],
         "summary": "Delete Note",
-        "description": "Delete a note. Requires group membership.",
-        "operationId": "delete_note_api_v1_groups__group_id__routines__routine_id__notes__note_id__delete",
+        "description": "Delete a note. Requires session access.",
+        "operationId": "delete_note_api_v1_sessions__session_id__notes__note_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1411,21 +2002,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1433,7 +2016,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Note Id"
             }
           }
@@ -1455,14 +2039,14 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/routines/{routine_id}/videos/{video_id}/notes": {
+    "/api/v1/sessions/{session_id}/videos/{video_id}/notes": {
       "post": {
         "tags": [
           "notes"
         ],
         "summary": "Create Video Note",
         "description": "Create a video note with optional timestamp.\n\n- **note_type**: Type of note\n- **contents**: Note contents\n- **video_timestamp_ms**: Optional timestamp in milliseconds\n- **details**: Optional structured data",
-        "operationId": "create_video_note_api_v1_groups__group_id__routines__routine_id__videos__video_id__notes_post",
+        "operationId": "create_video_note_api_v1_sessions__session_id__videos__video_id__notes_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1470,21 +2054,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1492,7 +2068,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1536,7 +2113,7 @@
         ],
         "summary": "List Video Notes",
         "description": "List all notes for a specific video.",
-        "operationId": "list_video_notes_api_v1_groups__group_id__routines__routine_id__videos__video_id__notes_get",
+        "operationId": "list_video_notes_api_v1_sessions__session_id__videos__video_id__notes_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1544,21 +2121,13 @@
         ],
         "parameters": [
           {
-            "name": "group_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Routine Id"
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
             }
           },
           {
@@ -1566,7 +2135,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
+              "format": "uuid",
               "title": "Video Id"
             }
           }
@@ -1581,7 +2151,7 @@
                   "items": {
                     "$ref": "#/components/schemas/NoteResponse"
                   },
-                  "title": "Response List Video Notes Api V1 Groups  Group Id  Routines  Routine Id  Videos  Video Id  Notes Get"
+                  "title": "Response List Video Notes Api V1 Sessions  Session Id  Videos  Video Id  Notes Get"
                 }
               }
             }
@@ -2472,6 +3042,112 @@
         ],
         "title": "Body_submit_video_analysis_api_v1_analyze_post"
       },
+      "DanceCreate": {
+        "properties": {
+          "tempo": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Tempo",
+            "description": "Tempo in BPM"
+          },
+          "meter": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Meter",
+            "description": "Time signature, e.g. 3/4"
+          },
+          "style": {
+            "$ref": "#/components/schemas/DanceStyle"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tempo",
+          "meter",
+          "style"
+        ],
+        "title": "DanceCreate",
+        "description": "Request body for creating a dance."
+      },
+      "DanceResponse": {
+        "properties": {
+          "tempo": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Tempo",
+            "description": "Tempo in BPM"
+          },
+          "meter": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Meter",
+            "description": "Time signature, e.g. 3/4"
+          },
+          "style": {
+            "$ref": "#/components/schemas/DanceStyle"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tempo",
+          "meter",
+          "style",
+          "id",
+          "created_at"
+        ],
+        "title": "DanceResponse",
+        "description": "Response body for dance data."
+      },
+      "DanceStyle": {
+        "type": "string",
+        "enum": [
+          "samba",
+          "cha_cha",
+          "rumba",
+          "paso_doble",
+          "jive",
+          "waltz",
+          "tango",
+          "viennese_waltz",
+          "foxtrot",
+          "quickstep",
+          "american_waltz",
+          "american_tango",
+          "american_foxtrot",
+          "american_viennese_waltz",
+          "american_cha_cha",
+          "american_rumba",
+          "swing",
+          "bolero",
+          "mambo"
+        ],
+        "title": "DanceStyle",
+        "description": "Dance style enumeration."
+      },
       "GroupCreate": {
         "properties": {
           "name": {
@@ -2624,6 +3300,10 @@
             "format": "uuid",
             "title": "User Id"
           },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
           "role": {
             "$ref": "#/components/schemas/GroupRole"
           },
@@ -2640,6 +3320,7 @@
         "required": [
           "group_id",
           "user_id",
+          "username",
           "role",
           "status",
           "created_at"
@@ -2733,7 +3414,8 @@
       "JobResponse": {
         "properties": {
           "id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "Id"
           },
           "job_id": {
@@ -2741,13 +3423,15 @@
             "title": "Job Id"
           },
           "user_id": {
-            "type": "integer",
+            "type": "string",
+            "format": "uuid",
             "title": "User Id"
           },
           "video_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"
@@ -2883,10 +3567,10 @@
             "format": "uuid",
             "title": "Author Id"
           },
-          "routine_id": {
+          "routine_session_id": {
             "type": "string",
             "format": "uuid",
-            "title": "Routine Id"
+            "title": "Routine Session Id"
           },
           "video_id": {
             "anyOf": [
@@ -2961,7 +3645,7 @@
         "required": [
           "id",
           "author_id",
-          "routine_id",
+          "routine_session_id",
           "note_type",
           "contents",
           "created_at"
@@ -3010,6 +3694,76 @@
         ],
         "title": "RoutineCreate",
         "description": "Request body for creating a routine."
+      },
+      "RoutineDancerSlotCreate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "order_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "RoutineDancerSlotCreate",
+        "description": "Request body for creating a dancer slot."
+      },
+      "RoutineDancerSlotResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "routine_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Routine Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "order_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Index"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "routine_id",
+          "label",
+          "created_at"
+        ],
+        "title": "RoutineDancerSlotResponse",
+        "description": "Response body for dancer slot data."
       },
       "RoutineNoteCreate": {
         "properties": {
@@ -3060,18 +3814,6 @@
             "format": "uuid",
             "title": "Id"
           },
-          "group_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Id"
-          },
           "created_by": {
             "type": "string",
             "format": "uuid",
@@ -3106,6 +3848,105 @@
         "title": "RoutineResponse",
         "description": "Response body for routine data."
       },
+      "RoutineSessionCreate": {
+        "properties": {
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "title": "RoutineSessionCreate",
+        "description": "Request body for creating a routine session."
+      },
+      "RoutineSessionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "routine_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Routine Id"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "routine_id",
+          "created_by",
+          "created_at"
+        ],
+        "title": "RoutineSessionResponse",
+        "description": "Response body for routine session data."
+      },
       "RoutineUpdate": {
         "properties": {
           "title": {
@@ -3137,6 +3978,66 @@
         "type": "object",
         "title": "RoutineUpdate",
         "description": "Request body for updating a routine."
+      },
+      "SlotAssignmentCreate": {
+        "properties": {
+          "dancer_slot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dancer Slot Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dancer_slot_id",
+          "user_id"
+        ],
+        "title": "SlotAssignmentCreate",
+        "description": "Request body for assigning a user to a dancer slot."
+      },
+      "SlotAssignmentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "routine_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Routine Session Id"
+          },
+          "dancer_slot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dancer Slot Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "routine_session_id",
+          "dancer_slot_id",
+          "user_id",
+          "created_at"
+        ],
+        "title": "SlotAssignmentResponse",
+        "description": "Response body for slot assignment data."
       },
       "Token": {
         "properties": {
@@ -3424,7 +4325,7 @@
             "format": "uuid",
             "title": "Id"
           },
-          "routine_id": {
+          "routine_session_id": {
             "anyOf": [
               {
                 "type": "string",
@@ -3434,7 +4335,7 @@
                 "type": "null"
               }
             ],
-            "title": "Routine Id"
+            "title": "Routine Session Id"
           },
           "uploaded_by": {
             "type": "string",

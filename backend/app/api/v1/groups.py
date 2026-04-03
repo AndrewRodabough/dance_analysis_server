@@ -11,7 +11,7 @@ from app.core.deps import get_current_active_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.group import (
-    AddMemberRequest,
+    AddAdminRequest,
     GroupCreate,
     GroupMembershipResponse,
     GroupResponse,
@@ -79,7 +79,7 @@ def list_members(
 )
 def add_member(
     group_id: UUID,
-    data: AddMemberRequest,
+    data: AddAdminRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):

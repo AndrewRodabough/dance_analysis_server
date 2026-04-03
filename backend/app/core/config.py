@@ -31,6 +31,16 @@ class Settings:
 
     # App
     USE_MOCK_ANALYSIS: bool = os.getenv("USE_MOCK_ANALYSIS", "false").lower() == "true"
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    CORS_ORIGINS: list = os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000"
+    ).split(",")
+
+    # Email (AWS SES)
+    AWS_SES_REGION: str = os.getenv("AWS_SES_REGION", "us-east-1")
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    EMAIL_DOMAIN: str = os.getenv("EMAIL_DOMAIN", "")
 
 
 settings = Settings()
