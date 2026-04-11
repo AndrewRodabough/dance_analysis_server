@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     analyze,
@@ -15,6 +16,10 @@ from app.api.v1 import (
     routine_sessions,
     routine_videos,
     routines,
+    session_access,
+    session_invites,
+    session_participants,
+    session_user_state,
     slot_assignments,
 )
 
@@ -69,11 +74,21 @@ def create_app() -> FastAPI:
     app.include_router(
         routine_sessions.router, prefix="/api/v1", tags=["routine-sessions"]
     )
-    app.include_router(
-        dancer_slots.router, prefix="/api/v1", tags=["dancer-slots"]
-    )
+    app.include_router(dancer_slots.router, prefix="/api/v1", tags=["dancer-slots"])
     app.include_router(
         slot_assignments.router, prefix="/api/v1", tags=["slot-assignments"]
+    )
+
+    # Session access management and user state
+    app.include_router(session_access.router, prefix="/api/v1", tags=["session-access"])
+    app.include_router(session_invites.router, prefix="/api/v1", tags=["session-invites"])
+    app.include_router(
+        session_user_state.router, prefix="/api/v1", tags=["session-state"]
+    )
+
+    # Session participants and casting
+    app.include_router(
+        session_participants.router, prefix="/api/v1", tags=["session-participants"]
     )
 
     # Session videos
@@ -90,6 +105,36 @@ def create_app() -> FastAPI:
     app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
     app.include_router(job_artifacts.router, prefix="/api/v1", tags=["job-artifacts"])
     app.include_router(analyze.router, prefix="/api/v1", tags=["analyze"])
+
+    # Deep link association files (Universal Links / App Links)
+    @app.get("/.well-known/apple-app-site-association", include_in_schema=False)
+    def apple_app_site_association():
+        body = {
+            "applinks": {
+                "apps": [],
+                "details": [
+                    {
+                        "appID": settings.IOS_APP_ID,
+                        "paths": ["/accept-invite/*", "/accept-session-invite/*"],
+                    }
+                ],
+            }
+        }
+        return JSONResponse(content=body, media_type="application/json")
+
+    @app.get("/.well-known/assetlinks.json", include_in_schema=False)
+    def assetlinks():
+        body = [
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": settings.ANDROID_PACKAGE_NAME,
+                    "sha256_cert_fingerprints": [settings.ANDROID_CERT_FINGERPRINT],
+                },
+            }
+        ]
+        return JSONResponse(content=body, media_type="application/json")
 
     return app
 

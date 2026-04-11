@@ -95,8 +95,8 @@ class VideosService:
         return query.order_by(Video.created_at.desc()).all()
 
     @staticmethod
-    def get_download_url(video: Video) -> Optional[str]:
-        """Get a presigned download URL. Only for uploaded videos."""
+    def get_stream_url(video: Video) -> Optional[str]:
+        """Get a presigned stream URL. Only for uploaded videos."""
         if video.status != VideoStatus.UPLOADED:
             return None
         return create_presigned_get_url(video.storage_key)

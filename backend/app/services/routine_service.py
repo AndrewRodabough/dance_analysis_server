@@ -7,22 +7,35 @@ from sqlalchemy.orm import Session
 
 from app.models.routine import Routine
 from app.schemas.routine import RoutineCreate, RoutineUpdate
+from app.services.routine_session_service import RoutineSessionService
 
 
 class RoutinesService:
     """Service for managing routines as reusable choreography definitions."""
 
     @staticmethod
-    def create_routine(
-        db: Session, user_id: UUID, data: RoutineCreate
-    ) -> Routine:
-        """Create a routine."""
+    def create_routine(db: Session, user_id: UUID, data: RoutineCreate) -> Routine:
+        """Create a routine.
+
+        This is atomic: creates the routine and its default session.
+        The default session owner is the routine creator.
+        """
         routine = Routine(
             title=data.title,
             dance_id=data.dance_id,
             created_by=user_id,
         )
         db.add(routine)
+        db.flush()
+
+        # Create default session for the routine
+        # This also grants the creator admin access
+        RoutineSessionService.create_default_session(
+            db,
+            routine.id,
+            user_id,
+        )
+
         db.commit()
         db.refresh(routine)
         return routine
@@ -43,9 +56,7 @@ class RoutinesService:
         return db.query(Routine).filter(Routine.id == routine_id).first()
 
     @staticmethod
-    def update_routine(
-        db: Session, routine: Routine, data: RoutineUpdate
-    ) -> Routine:
+    def update_routine(db: Session, routine: Routine, data: RoutineUpdate) -> Routine:
         """Update routine fields."""
         if data.title is not None:
             routine.title = data.title
@@ -57,7 +68,7 @@ class RoutinesService:
 
     @staticmethod
     def delete_routine(db: Session, routine: Routine) -> bool:
-        """Delete a routine."""
+        """Delete a routine and all associated sessions and data."""
         db.delete(routine)
         db.commit()
         return True

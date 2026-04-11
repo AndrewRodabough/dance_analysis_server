@@ -72,6 +72,18 @@ class RoutineSession(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    access_origins = relationship(
+        "SessionAccessOrigin",
+        back_populates="routine_session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    group_links = relationship(
+        "SessionGroupLink",
+        back_populates="routine_session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     participants = relationship(
         "SessionParticipant",
         back_populates="routine_session",

@@ -12,6 +12,8 @@ from app.models.group import GroupMembership, MembershipStatus
 from app.models.job import Job
 from app.models.routine import Routine
 from app.models.routine_session import RoutineSession
+from app.models.session_access import SessionAccess
+from app.models.session_user_state import SessionUserState
 from app.models.video import Video, VideoStatus
 
 
@@ -100,35 +102,73 @@ def require_session_access(
     """Require that the user has access to the session.
 
     Access is granted if:
-    - The user created the session, OR
-    - The session belongs to a group the user is an active member of.
+    - The user has a SessionAccess record for this session (direct or group-derived).
 
-    Raises 404 if session doesn't exist or user has no access.
+    Raises 404 if session doesn't exist or user has no access (non-leaky).
     """
     rs = require_session(db, session_id)
 
-    # Creator always has access
-    if rs.created_by == user_id:
-        return rs
-
-    # Group-scoped: check membership
-    if rs.group_id is not None:
-        membership = (
-            db.query(GroupMembership)
-            .filter(
-                GroupMembership.group_id == rs.group_id,
-                GroupMembership.user_id == user_id,
-                GroupMembership.status == MembershipStatus.ACTIVE,
-            )
-            .first()
+    # Check for effective access
+    access = (
+        db.query(SessionAccess)
+        .filter(
+            SessionAccess.session_id == session_id,
+            SessionAccess.user_id == user_id,
         )
-        if membership:
-            return rs
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Not found",
+        .first()
     )
+
+    if not access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    return rs
+
+
+def require_session_not_deleted(db: Session, session_id: UUID, user_id: UUID) -> bool:
+    """Check that the session is not marked as deleted for the user.
+
+    Returns True if session is not deleted or no state record exists.
+    Returns False if session is marked as deleted for this user.
+    """
+    user_state = (
+        db.query(SessionUserState)
+        .filter(
+            SessionUserState.session_id == session_id,
+            SessionUserState.user_id == user_id,
+        )
+        .first()
+    )
+
+    if user_state and user_state.is_deleted:
+        return False
+
+    return True
+
+
+def require_session_owner(
+    db: Session, session_id: UUID, user_id: UUID
+) -> RoutineSession:
+    """Require that the user owns the session.
+
+    Raises 404 if session doesn't exist or user is not the owner (non-leaky).
+    """
+    rs = (
+        db.query(RoutineSession)
+        .filter(
+            RoutineSession.id == session_id,
+            RoutineSession.owner_id == user_id,
+        )
+        .first()
+    )
+    if not rs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+    return rs
 
 
 def require_video_in_session(
@@ -164,3 +204,14 @@ def require_job_owner(db: Session, job_id: str, user_id: UUID) -> Job:
             detail="Not found",
         )
     return job
+
+
+def require_session_capability(
+    db: Session, session_id: UUID, user_id: UUID, capability: str
+) -> RoutineSession:
+    """Require that the user has a specific capability within the session.
+
+    v0.0.1: delegates to session access check (any user with access has all capabilities).
+    Future: role/capability mapping can be inserted here.
+    """
+    return require_session_access(db, session_id, user_id)

@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.authorization import (
-    require_group_member,
     require_routine,
     require_session_access,
+    require_session_owner,
 )
 from app.core.deps import get_current_active_user
 from app.database import get_db
@@ -34,12 +34,11 @@ def create_session(
     """
     Create a session for a routine.
 
-    - **group_id**: Optional group to scope the session to
     - **label**: Optional human-friendly label
+
+    The creating user becomes the session owner and receives admin access.
     """
     require_routine(db, routine_id)
-    if data.group_id is not None:
-        require_group_member(db, data.group_id, current_user.id)
     return RoutineSessionService.create(db, routine_id, current_user.id, data)
 
 
@@ -52,23 +51,12 @@ def list_routine_sessions(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    """List all sessions for a routine."""
+    """List all sessions for a routine.
+
+    Only shows sessions the user has access to.
+    """
     require_routine(db, routine_id)
     return RoutineSessionService.list_for_routine(db, routine_id)
-
-
-@router.get(
-    "/groups/{group_id}/sessions",
-    response_model=List[RoutineSessionResponse],
-)
-def list_group_sessions(
-    group_id: UUID,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """List all sessions within a group. Requires membership."""
-    require_group_member(db, group_id, current_user.id)
-    return RoutineSessionService.list_for_group(db, group_id)
 
 
 @router.get(
@@ -80,7 +68,10 @@ def get_session(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    """Get a specific session. Requires access."""
+    """Get a specific session.
+
+    Requires the user to have access to the session.
+    """
     return require_session_access(db, session_id, current_user.id)
 
 
@@ -93,7 +84,10 @@ def delete_session(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a session. Requires access."""
-    rs = require_session_access(db, session_id, current_user.id)
+    """Delete a session and all associated data.
+
+    Requires: user is the session owner.
+    """
+    rs = require_session_owner(db, session_id, current_user.id)
     RoutineSessionService.delete(db, rs)
     return None

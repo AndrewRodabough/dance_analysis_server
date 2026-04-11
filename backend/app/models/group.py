@@ -64,10 +64,6 @@ class Group(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    routine_sessions = relationship(
-        "RoutineSession",
-        back_populates="group",
-    )
     invites = relationship(
         "GroupInvite",
         back_populates="group",

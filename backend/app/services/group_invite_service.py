@@ -21,7 +21,7 @@ from app.models.group import (
     MembershipStatus,
 )
 from app.models.user import User
-from app.schemas.group_invite import GroupInviteCreate, InviteLookupResponse
+from app.schemas.group_invite import GroupInviteCreate, GroupInvitePendingResponse, InviteLookupResponse
 
 logger = get_logger(__name__)
 
@@ -84,20 +84,22 @@ class GroupInvitesService:
         """
         invite = db.query(GroupInvite).filter(GroupInvite.token == token).first()
 
-        if not invite or invite.status != GroupInviteStatus.PENDING:
+        if not invite:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+        if invite.status != GroupInviteStatus.PENDING:
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Gone")
 
         if invite.expires_at < datetime.now(timezone.utc):
             invite.status = GroupInviteStatus.EXPIRED
             db.commit()
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Gone")
 
         group = db.query(Group).filter(Group.id == invite.group_id).first()
-        inviter = db.query(User).filter(User.id == invite.created_by).first()
 
         return InviteLookupResponse(
+            group_id=invite.group_id,
             group_name=group.name,
-            invited_by=inviter.username,
             role=invite.role,
             expires_at=invite.expires_at,
         )
@@ -162,6 +164,35 @@ class GroupInvitesService:
         db.commit()
         db.refresh(membership)
         return membership
+
+    @staticmethod
+    def list_pending_for_user(db: Session, user_email: str) -> list[GroupInvitePendingResponse]:
+        """Return all pending group invites addressed to the given email."""
+        now = datetime.now(timezone.utc)
+        invites = (
+            db.query(GroupInvite)
+            .filter(
+                GroupInvite.email == user_email.lower(),
+                GroupInvite.status == GroupInviteStatus.PENDING,
+                GroupInvite.expires_at > now,
+            )
+            .all()
+        )
+
+        results = []
+        for invite in invites:
+            group = db.query(Group).filter(Group.id == invite.group_id).first()
+            results.append(
+                GroupInvitePendingResponse(
+                    token=invite.token,
+                    group_id=invite.group_id,
+                    group_name=group.name,
+                    role=invite.role,
+                    expires_at=invite.expires_at,
+                    created_at=invite.created_at,
+                )
+            )
+        return results
 
     @staticmethod
     def revoke_invite(db: Session, invite_id: UUID, group_id: UUID) -> bool:

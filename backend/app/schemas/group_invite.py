@@ -45,7 +45,20 @@ class AcceptInviteRequest(BaseModel):
 class InviteLookupResponse(BaseModel):
     """Public invite details returned before authentication."""
 
+    group_id: UUID
     group_name: str
-    invited_by: str
     role: Optional[GroupRole]
     expires_at: datetime
+
+
+class GroupInvitePendingResponse(BaseModel):
+    """One pending group invite in the authenticated user's invite list."""
+
+    token: str
+    group_id: UUID
+    group_name: str
+    role: Optional[GroupRole]
+    expires_at: datetime
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

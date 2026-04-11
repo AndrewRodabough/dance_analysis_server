@@ -13,6 +13,7 @@ from app.schemas.group import GroupMembershipResponse
 from app.schemas.group_invite import (
     AcceptInviteRequest,
     GroupInviteCreate,
+    GroupInvitePendingResponse,
     GroupInviteResponse,
     InviteLookupResponse,
 )
@@ -35,6 +36,23 @@ def lookup_invite(token: str, db: Session = Depends(get_db)):
     Returns 404 for invalid, expired, or revoked tokens.
     """
     return GroupInvitesService.lookup_invite(db, token)
+
+
+@router.get(
+    "/group-invites/pending",
+    response_model=list[GroupInvitePendingResponse],
+)
+def list_pending_invites(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """
+    List all pending group invites for the authenticated user.
+
+    Matches on the user's email address. Returns invites with status=pending
+    that have not yet expired.
+    """
+    return GroupInvitesService.list_pending_for_user(db, current_user.email)
 
 
 @router.post(

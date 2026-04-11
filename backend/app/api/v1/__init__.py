@@ -1,0 +1,43 @@
+"""API v1 routers and endpoints."""
+
+from app.api.v1 import (
+    analyze,
+    auth,
+    dancer_slots,
+    dances,
+    group_invites,
+    groups,
+    health,
+    job_artifacts,
+    jobs,
+    notes,
+    routine_sessions,
+    routine_videos,
+    routines,
+    session_access,
+    session_invites,
+    session_participants,
+    session_user_state,
+    slot_assignments,
+)
+
+__all__ = [
+    "analyze",
+    "auth",
+    "dancer_slots",
+    "dances",
+    "group_invites",
+    "groups",
+    "health",
+    "job_artifacts",
+    "jobs",
+    "notes",
+    "routine_sessions",
+    "routine_videos",
+    "routines",
+    "session_access",
+    "session_invites",
+    "session_participants",
+    "session_user_state",
+    "slot_assignments",
+]

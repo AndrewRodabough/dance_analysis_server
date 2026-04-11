@@ -3,7 +3,7 @@
 import uuid
 from enum import Enum as PyEnum
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -21,13 +21,14 @@ class SessionAccessRole(str, PyEnum):
 
 
 class SessionAccess(Base):
-    """Controls who can access a session."""
+    """Controls direct user access to a session."""
 
     __tablename__ = "session_access"
     __table_args__ = (
-        CheckConstraint(
-            "(user_id IS NOT NULL AND group_id IS NULL) OR (user_id IS NULL AND group_id IS NOT NULL)",
-            name="ck_session_access_one_subject",
+        UniqueConstraint(
+            "session_id",
+            "user_id",
+            name="uq_session_access_session_user",
         ),
     )
 
@@ -41,13 +42,7 @@ class SessionAccess(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    )
-    group_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("groups.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True,
     )
     role = Column(
@@ -65,10 +60,9 @@ class SessionAccess(Base):
     # Relationships
     routine_session = relationship("RoutineSession", back_populates="access_records")
     user = relationship("User", backref="session_access_records")
-    group = relationship("Group", backref="session_access_records")
 
     def __repr__(self):
         return (
             f"<SessionAccess(id={self.id}, session_id={self.session_id}, "
-            f"user_id={self.user_id}, group_id={self.group_id}, role={self.role})>"
+            f"user_id={self.user_id}, role={self.role})>"
         )

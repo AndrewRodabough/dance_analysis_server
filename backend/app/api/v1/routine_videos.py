@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.video import VideoStatus
 from app.schemas.video import (
-    VideoDownloadResponse,
+    VideoStreamUrlResponse,
     VideoRegisterResponse,
     VideoRegisterUpload,
     VideoResponse,
@@ -109,21 +109,21 @@ def finalize_upload(
     return result
 
 
-@router.get("/{video_id}/download", response_model=VideoDownloadResponse)
-def download_video(
+@router.get("/{video_id}/stream-url", response_model=VideoStreamUrlResponse)
+def get_stream_url(
     session_id: UUID,
     video_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    """Get a presigned download URL. Only works for uploaded videos."""
+    """Get a presigned stream URL. Only works for uploaded videos."""
     require_session_access(db, session_id, current_user.id)
     video = require_video_in_session(db, session_id, video_id)
 
-    url = VideosService.get_download_url(video)
+    url = VideosService.get_stream_url(video)
     if url is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    return VideoDownloadResponse(video_id=video.id, download_url=url)
+    return VideoStreamUrlResponse(video_id=video.id, stream_url=url)
 
 
 @router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)

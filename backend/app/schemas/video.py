@@ -42,11 +42,11 @@ class VideoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class VideoDownloadResponse(BaseModel):
-    """Response with a presigned download URL."""
+class VideoStreamUrlResponse(BaseModel):
+    """Response with a presigned stream URL."""
 
     video_id: UUID
-    download_url: str
+    stream_url: str
     expires_in: int = 3600
 
 

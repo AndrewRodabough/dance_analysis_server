@@ -100,6 +100,48 @@
         }
       }
     },
+    "/api/v1/auth/register-with-invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register With Invite",
+        "description": "Register a new account and accept a group invite in one step.\n\n- **token**: The invite token from the invite link\n- **username**: Username between 3-50 characters (unique)\n- **password**: Password at least 8 characters\n\nThe email is taken from the invite \u2014 it cannot be changed.\nReturns auth tokens so the user is immediately logged in.",
+        "operationId": "register_with_invite_api_v1_auth_register_with_invite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterWithInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -412,7 +454,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AddMemberRequest"
+                "$ref": "#/components/schemas/AddAdminRequest"
               }
             }
           }
@@ -491,6 +533,80 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/group-invites/lookup": {
+      "get": {
+        "tags": [
+          "group-invites"
+        ],
+        "summary": "Lookup Invite",
+        "description": "Look up public invite details by token. No authentication required.\n\nUsed by the invite landing page to display group and inviter info\nbefore the user logs in or registers.\n\nReturns 404 for invalid, expired, or revoked tokens.",
+        "operationId": "lookup_invite_api_v1_group_invites_lookup_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteLookupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/group-invites/pending": {
+      "get": {
+        "tags": [
+          "group-invites"
+        ],
+        "summary": "List Pending Invites",
+        "description": "List all pending group invites for the authenticated user.\n\nMatches on the user's email address. Returns invites with status=pending\nthat have not yet expired.",
+        "operationId": "list_pending_invites_api_v1_group_invites_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GroupInvitePendingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Invites Api V1 Group Invites Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/groups/{group_id}/invites": {
@@ -952,7 +1068,7 @@
           "routine-sessions"
         ],
         "summary": "Create Session",
-        "description": "Create a session for a routine.\n\n- **group_id**: Optional group to scope the session to\n- **label**: Optional human-friendly label",
+        "description": "Create a session for a routine.\n\n- **label**: Optional human-friendly label\n\nThe creating user becomes the session owner and receives admin access.",
         "operationId": "create_session_api_v1_routines__routine_id__sessions_post",
         "security": [
           {
@@ -1009,7 +1125,7 @@
           "routine-sessions"
         ],
         "summary": "List Routine Sessions",
-        "description": "List all sessions for a routine.",
+        "description": "List all sessions for a routine.\n\nOnly shows sessions the user has access to.",
         "operationId": "list_routine_sessions_api_v1_routines__routine_id__sessions_get",
         "security": [
           {
@@ -1056,66 +1172,13 @@
         }
       }
     },
-    "/api/v1/groups/{group_id}/sessions": {
-      "get": {
-        "tags": [
-          "routine-sessions"
-        ],
-        "summary": "List Group Sessions",
-        "description": "List all sessions within a group. Requires membership.",
-        "operationId": "list_group_sessions_api_v1_groups__group_id__sessions_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Group Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RoutineSessionResponse"
-                  },
-                  "title": "Response List Group Sessions Api V1 Groups  Group Id  Sessions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/sessions/{session_id}": {
       "get": {
         "tags": [
           "routine-sessions"
         ],
         "summary": "Get Session",
-        "description": "Get a specific session. Requires access.",
+        "description": "Get a specific session.\n\nRequires the user to have access to the session.",
         "operationId": "get_session_api_v1_sessions__session_id__get",
         "security": [
           {
@@ -1162,7 +1225,7 @@
           "routine-sessions"
         ],
         "summary": "Delete Session",
-        "description": "Delete a session. Requires access.",
+        "description": "Delete a session and all associated data.\n\nRequires: user is the session owner.",
         "operationId": "delete_session_api_v1_sessions__session_id__delete",
         "security": [
           {
@@ -1522,6 +1585,1465 @@
         }
       }
     },
+    "/api/v1/sessions/{session_id}/access": {
+      "get": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "List Session Access",
+        "description": "List all users with access to a session.\n\nRequires: user is the session owner.",
+        "operationId": "list_session_access_api_v1_sessions__session_id__access_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionAccessResponse"
+                  },
+                  "title": "Response List Session Access Api V1 Sessions  Session Id  Access Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/access/users": {
+      "post": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "Grant Direct Access",
+        "description": "Grant direct access to a user for a session.\n\nCreates both the SessionAccess record and tracks the origin.\n\nRequires: user is the session owner.",
+        "operationId": "grant_direct_access_api_v1_sessions__session_id__access_users_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionAccessCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionAccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/access/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "Revoke Direct Access",
+        "description": "Revoke direct access for a user on a session.\n\nRemoves the direct access origin. If no other origins remain,\nremoves the user's access entirely.\n\nRequires: user is the session owner.",
+        "operationId": "revoke_direct_access_api_v1_sessions__session_id__access_users__user_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/access/origins": {
+      "get": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "List Access Origins",
+        "description": "List all access origins for a session.\n\nShows how each user gained access (direct or via group).\n\nRequires: user has access to the session.",
+        "operationId": "list_access_origins_api_v1_sessions__session_id__access_origins_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionAccessOriginResponse"
+                  },
+                  "title": "Response List Access Origins Api V1 Sessions  Session Id  Access Origins Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/access/users/{user_id}/origins": {
+      "get": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "List User Origins",
+        "description": "List all origins for a specific user on a session.\n\nShows all ways the user has access (direct, multiple groups, etc.).\n\nRequires: user has access to the session.",
+        "operationId": "list_user_origins_api_v1_sessions__session_id__access_users__user_id__origins_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionAccessOriginResponse"
+                  },
+                  "title": "Response List User Origins Api V1 Sessions  Session Id  Access Users  User Id  Origins Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/groups": {
+      "get": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "List Session Groups",
+        "description": "List all groups linked to a session.\n\nShows which groups have access to this session.\n\nRequires: user has access to the session.",
+        "operationId": "list_session_groups_api_v1_sessions__session_id__groups_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionGroupLinkResponse"
+                  },
+                  "title": "Response List Session Groups Api V1 Sessions  Session Id  Groups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "Link Group To Session",
+        "description": "Link a group to a session.\n\nAll active group members will gain access to the session at the specified role.\nThis is atomic: group link and access records are created together.\n\nRequires: user is the session owner.",
+        "operationId": "link_group_to_session_api_v1_sessions__session_id__groups_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionGroupLinkCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionGroupLinkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/groups/{group_id}": {
+      "delete": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "Unlink Group From Session",
+        "description": "Unlink a group from a session.\n\nAll group-derived access will be removed for group members.\nIf a user has no other access origins, their access is revoked entirely.\n\nRequires: user is the session owner.",
+        "operationId": "unlink_group_from_session_api_v1_sessions__session_id__groups__group_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/access/groups/{group_id}/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "session-access"
+        ],
+        "summary": "Revoke Group Member Access",
+        "description": "Revoke group-derived access for a specific user.\n\nRemoves the group access origin for this user. If no other origins remain,\nremoves the user's access entirely.\n\nRequires: user is the session owner.",
+        "operationId": "revoke_group_member_access_api_v1_sessions__session_id__access_groups__group_id__users__user_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session-invites/lookup": {
+      "get": {
+        "tags": [
+          "session-invites"
+        ],
+        "summary": "Lookup Invite",
+        "description": "Look up public invite details by token. No authentication required.\n\nUsed by the invite landing page to display session info\nbefore the user logs in or registers.\n\nReturns 404 for invalid, expired, or revoked tokens.",
+        "operationId": "lookup_invite_api_v1_session_invites_lookup_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInviteLookupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session-invites/pending": {
+      "get": {
+        "tags": [
+          "session-invites"
+        ],
+        "summary": "List Pending Invites",
+        "description": "List all pending session invites for the authenticated user.\n\nMatches on the user's email address. Returns invites with status=pending\nthat have not yet expired.",
+        "operationId": "list_pending_invites_api_v1_session_invites_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionInvitePendingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Invites Api V1 Session Invites Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/invites": {
+      "post": {
+        "tags": [
+          "session-invites"
+        ],
+        "summary": "Create Invite",
+        "description": "Create a session invite for an email address.\n\n- **email**: Email to invite\n- **role**: Role for the invitee (viewer, editor, or admin)\n\nRequires session access capability. Does NOT create access immediately.",
+        "operationId": "create_invite_api_v1_sessions__session_id__invites_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionInviteCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInviteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session-invites/accept": {
+      "post": {
+        "tags": [
+          "session-invites"
+        ],
+        "summary": "Accept Invite",
+        "description": "Accept a session invite by token.\n\n- **token**: The invite token received\n\nThe accepting user's email must match the invite email (strict).\nReturns 404 for any failure to avoid information leakage.\nCreates a SessionAccess record with direct access.",
+        "operationId": "accept_invite_api_v1_session_invites_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptSessionInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionAccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/archive": {
+      "post": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "Archive Session",
+        "description": "Archive a session for the current user.\n\nArchived sessions remain visible but are typically grouped or hidden.\nRequires: user has access to the session.",
+        "operationId": "archive_session_api_v1_sessions__session_id__archive_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUserStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/unarchive": {
+      "post": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "Unarchive Session",
+        "description": "Unarchive a session for the current user.\n\nRequires: user has access to the session.",
+        "operationId": "unarchive_session_api_v1_sessions__session_id__unarchive_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUserStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/delete": {
+      "post": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "Delete Session",
+        "description": "Mark a session as deleted for the current user.\n\nDeleted sessions will be excluded from normal session lists.\nRequires: user has access to the session.",
+        "operationId": "delete_session_api_v1_sessions__session_id__delete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUserStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/restore": {
+      "post": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "Restore Session",
+        "description": "Restore a deleted session for the current user.\n\nRequires: user has access to the session (even if deleted).",
+        "operationId": "restore_session_api_v1_sessions__session_id__restore_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUserStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions": {
+      "get": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "List My Sessions",
+        "description": "List all sessions the current user has access to.\n\nExcludes sessions the user has soft-deleted (SessionUserState.is_deleted=true).\nArchived sessions are included; callers can check /me/sessions/state for flags.\nSessions are ordered newest-first.",
+        "operationId": "list_my_sessions_api_v1_me_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoutineSessionResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List My Sessions Api V1 Me Sessions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/sessions/state": {
+      "get": {
+        "tags": [
+          "session-state"
+        ],
+        "summary": "List My Session States",
+        "description": "List per-user state for all sessions the current user has access to.\n\nReturns an entry for every accessible session. Sessions with no explicit\nstate row are returned with id=null and both flags false (the default state).",
+        "operationId": "list_my_session_states_api_v1_me_sessions_state_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionUserStateResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List My Session States Api V1 Me Sessions State Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/participants": {
+      "get": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "List Participants",
+        "description": "List all participants in a session with available users.\n\nRequires: user has access to the session.",
+        "operationId": "list_participants_api_v1_sessions__session_id__participants_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Create Participant",
+        "description": "Create a participant in a session.\n\nThis operation is ATOMIC:\n- Creates participant record\n- Binds to slot (if provided)\n- Enforces one participant per user per session\n- Enforces one user per slot per session\n- Validates role is dancer or coach (v1 only)\n\nRequires: user is the session owner.",
+        "operationId": "create_participant_api_v1_sessions__session_id__participants_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionParticipantCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionParticipantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/participants/with-users": {
+      "get": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "List Participants With Users",
+        "description": "List participants with their user details.\n\nRequires: user has access to the session.",
+        "operationId": "list_participants_with_users_api_v1_sessions__session_id__participants_with_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionParticipantWithUserResponse"
+                  },
+                  "title": "Response List Participants With Users Api V1 Sessions  Session Id  Participants With Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/available-users": {
+      "get": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "List Available Users",
+        "description": "List users available to add as participants.\n\nAvailable = has access + not already a participant + not deleted.\n\nRequires: user has access to the session.",
+        "operationId": "list_available_users_api_v1_sessions__session_id__available_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Available Users Api V1 Sessions  Session Id  Available Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/participants/{participant_id}": {
+      "get": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Get Participant",
+        "description": "Get a specific participant.\n\nRequires: user has access to the session.",
+        "operationId": "get_participant_api_v1_sessions__session_id__participants__participant_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionParticipantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Update Participant",
+        "description": "Update a participant's role and/or slot binding.\n\nCan update:\n- role: dancer or coach\n- dancer_slot_id: bind to slot or null to unbind\n\nEnforces one user per slot constraint.\n\nRequires: user is the session owner.",
+        "operationId": "update_participant_api_v1_sessions__session_id__participants__participant_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionParticipantUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionParticipantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Delete Participant",
+        "description": "Delete a participant from a session.\n\nRemoves:\n- Participant record\n- Slot binding\n- All associated data\n\nRequires: user is the session owner.",
+        "operationId": "delete_participant_api_v1_sessions__session_id__participants__participant_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/participants/{participant_id}/bind-slot/{slot_id}": {
+      "post": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Bind Participant To Slot",
+        "description": "Bind a participant to a dancer slot.\n\nEnforces one user per slot per session.\n\nRequires: user is the session owner.",
+        "operationId": "bind_participant_to_slot_api_v1_sessions__session_id__participants__participant_id__bind_slot__slot_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Slot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionParticipantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/participants/{participant_id}/unbind-slot": {
+      "post": {
+        "tags": [
+          "session-participants"
+        ],
+        "summary": "Unbind Participant From Slot",
+        "description": "Remove a participant's slot binding.\n\nParticipant remains in session, just no longer bound to a slot.\n\nRequires: user is the session owner.",
+        "operationId": "unbind_participant_from_slot_api_v1_sessions__session_id__participants__participant_id__unbind_slot_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionParticipantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{session_id}/videos": {
       "post": {
         "tags": [
@@ -1818,14 +3340,14 @@
         }
       }
     },
-    "/api/v1/sessions/{session_id}/videos/{video_id}/download": {
+    "/api/v1/sessions/{session_id}/videos/{video_id}/stream-url": {
       "get": {
         "tags": [
           "session-videos"
         ],
-        "summary": "Download Video",
-        "description": "Get a presigned download URL. Only works for uploaded videos.",
-        "operationId": "download_video_api_v1_sessions__session_id__videos__video_id__download_get",
+        "summary": "Get Stream Url",
+        "description": "Get a presigned stream URL. Only works for uploaded videos.",
+        "operationId": "get_stream_url_api_v1_sessions__session_id__videos__video_id__stream_url_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1859,7 +3381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoDownloadResponse"
+                  "$ref": "#/components/schemas/VideoStreamUrlResponse"
                 }
               }
             }
@@ -3008,7 +4530,22 @@
         "title": "AcceptInviteRequest",
         "description": "Request body for accepting a group invite by token."
       },
-      "AddMemberRequest": {
+      "AcceptSessionInviteRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "AcceptSessionInviteRequest",
+        "description": "Request body for accepting a session invite by token."
+      },
+      "AddAdminRequest": {
         "properties": {
           "user_id": {
             "type": "string",
@@ -3018,14 +4555,19 @@
           "role": {
             "$ref": "#/components/schemas/GroupRole",
             "default": "member"
+          },
+          "isAdmin": {
+            "type": "boolean",
+            "title": "Isadmin",
+            "default": true
           }
         },
         "type": "object",
         "required": [
           "user_id"
         ],
-        "title": "AddMemberRequest",
-        "description": "Request body for adding a member to a group."
+        "title": "AddAdminRequest",
+        "description": "Request body for promoting a member to an admin"
       },
       "Body_submit_video_analysis_api_v1_analyze_post": {
         "properties": {
@@ -3202,6 +4744,54 @@
         "title": "GroupInviteCreate",
         "description": "Request body for creating a group invite."
       },
+      "GroupInvitePendingResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "type": "string",
+            "title": "Group Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "group_id",
+          "group_name",
+          "role",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "GroupInvitePendingResponse",
+        "description": "One pending group invite in the authenticated user's invite list."
+      },
       "GroupInviteResponse": {
         "properties": {
           "id": {
@@ -3307,6 +4897,10 @@
           "role": {
             "$ref": "#/components/schemas/GroupRole"
           },
+          "isAdmin": {
+            "type": "boolean",
+            "title": "Isadmin"
+          },
           "status": {
             "$ref": "#/components/schemas/MembershipStatus"
           },
@@ -3322,6 +4916,7 @@
           "user_id",
           "username",
           "role",
+          "isAdmin",
           "status",
           "created_at"
         ],
@@ -3391,7 +4986,6 @@
       "GroupRole": {
         "type": "string",
         "enum": [
-          "owner",
           "coach",
           "member"
         ],
@@ -3410,6 +5004,43 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "InviteLookupResponse": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "type": "string",
+            "title": "Group Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "group_name",
+          "role",
+          "expires_at"
+        ],
+        "title": "InviteLookupResponse",
+        "description": "Public invite details returned before authentication."
       },
       "JobResponse": {
         "properties": {
@@ -3673,6 +5304,65 @@
         "title": "NoteType",
         "description": "Note type enumeration."
       },
+      "ParticipantListResponse": {
+        "properties": {
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/SessionParticipantResponse"
+            },
+            "type": "array",
+            "title": "Participants"
+          },
+          "available_users": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Available Users",
+            "description": "User IDs with session access but no participant record"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participants",
+          "total_count"
+        ],
+        "title": "ParticipantListResponse",
+        "description": "Response for list of participants with slot information."
+      },
+      "RegisterWithInviteRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "username",
+          "password"
+        ],
+        "title": "RegisterWithInviteRequest"
+      },
       "RoutineCreate": {
         "properties": {
           "title": {
@@ -3850,18 +5540,6 @@
       },
       "RoutineSessionCreate": {
         "properties": {
-          "group_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Id"
-          },
           "label": {
             "anyOf": [
               {
@@ -3891,17 +5569,10 @@
             "format": "uuid",
             "title": "Routine Id"
           },
-          "group_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Id"
+          "owner_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Owner Id"
           },
           "created_by": {
             "type": "string",
@@ -3941,6 +5612,7 @@
         "required": [
           "id",
           "routine_id",
+          "owner_id",
           "created_by",
           "created_at"
         ],
@@ -3978,6 +5650,624 @@
         "type": "object",
         "title": "RoutineUpdate",
         "description": "Request body for updating a routine."
+      },
+      "SessionAccessCreate": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Access role: admin, editor, viewer",
+            "default": "admin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "SessionAccessCreate",
+        "description": "Request to create/grant session access."
+      },
+      "SessionAccessOriginResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "user_id",
+          "source_type",
+          "created_at"
+        ],
+        "title": "SessionAccessOriginResponse",
+        "description": "Response for session access origin."
+      },
+      "SessionAccessResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "user_id",
+          "role",
+          "created_at"
+        ],
+        "title": "SessionAccessResponse",
+        "description": "Response for session access record."
+      },
+      "SessionGroupLinkCreate": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Default role for group members: admin, editor, viewer",
+            "default": "admin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id"
+        ],
+        "title": "SessionGroupLinkCreate",
+        "description": "Request to link a group to a session."
+      },
+      "SessionGroupLinkResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "group_id",
+          "created_at"
+        ],
+        "title": "SessionGroupLinkResponse",
+        "description": "Response for session-group link."
+      },
+      "SessionInviteCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "Email address to invite."
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role for the invitee (viewer, editor, or admin).",
+            "default": "viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "SessionInviteCreate",
+        "description": "Request body for creating a session invite."
+      },
+      "SessionInviteLookupResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "routine_name": {
+            "type": "string",
+            "title": "Routine Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "routine_name",
+          "role",
+          "expires_at"
+        ],
+        "title": "SessionInviteLookupResponse",
+        "description": "Public session invite details returned before authentication."
+      },
+      "SessionInvitePendingResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "routine_name": {
+            "type": "string",
+            "title": "Routine Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "session_id",
+          "routine_name",
+          "role",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "SessionInvitePendingResponse",
+        "description": "One pending session invite in the authenticated user's invite list."
+      },
+      "SessionInviteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionInviteStatus"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "created_by",
+          "email",
+          "role",
+          "token",
+          "status",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "SessionInviteResponse",
+        "description": "Response body for a session invite."
+      },
+      "SessionInviteStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "revoked",
+          "expired"
+        ],
+        "title": "SessionInviteStatus",
+        "description": "Status of a session invite."
+      },
+      "SessionParticipantCreate": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Participant role: dancer or coach",
+            "default": "dancer"
+          },
+          "dancer_slot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dancer Slot Id",
+            "description": "Optional dancer slot to bind participant to"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "SessionParticipantCreate",
+        "description": "Request to create a session participant."
+      },
+      "SessionParticipantResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "dancer_slot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dancer Slot Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "user_id",
+          "role",
+          "created_at"
+        ],
+        "title": "SessionParticipantResponse",
+        "description": "Response for session participant record."
+      },
+      "SessionParticipantUpdate": {
+        "properties": {
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "Participant role: dancer or coach"
+          },
+          "dancer_slot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dancer Slot Id",
+            "description": "Dancer slot to bind participant to, or null to unbind"
+          }
+        },
+        "type": "object",
+        "title": "SessionParticipantUpdate",
+        "description": "Request to update a session participant."
+      },
+      "SessionParticipantWithUserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "dancer_slot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dancer Slot Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "user_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Email"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "user_id",
+          "role",
+          "created_at"
+        ],
+        "title": "SessionParticipantWithUserResponse",
+        "description": "Response including participant user details."
+      },
+      "SessionUserStateResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived"
+          },
+          "is_deleted": {
+            "type": "boolean",
+            "title": "Is Deleted"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "user_id",
+          "is_archived",
+          "is_deleted"
+        ],
+        "title": "SessionUserStateResponse",
+        "description": "Response for session user state.\n\n``id`` and ``created_at`` are None for sessions that have no explicit state\nrow \u2014 the caller should treat those as active (not archived, not deleted)."
       },
       "SlotAssignmentCreate": {
         "properties": {
@@ -4193,31 +6483,6 @@
         ],
         "title": "ValidationError"
       },
-      "VideoDownloadResponse": {
-        "properties": {
-          "video_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Video Id"
-          },
-          "download_url": {
-            "type": "string",
-            "title": "Download Url"
-          },
-          "expires_in": {
-            "type": "integer",
-            "title": "Expires In",
-            "default": 3600
-          }
-        },
-        "type": "object",
-        "required": [
-          "video_id",
-          "download_url"
-        ],
-        "title": "VideoDownloadResponse",
-        "description": "Response with a presigned download URL."
-      },
       "VideoNoteCreate": {
         "properties": {
           "note_type": {
@@ -4419,6 +6684,31 @@
         ],
         "title": "VideoStatus",
         "description": "Upload lifecycle status for a video."
+      },
+      "VideoStreamUrlResponse": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Video Id"
+          },
+          "stream_url": {
+            "type": "string",
+            "title": "Stream Url"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "default": 3600
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "stream_url"
+        ],
+        "title": "VideoStreamUrlResponse",
+        "description": "Response with a presigned stream URL."
       }
     },
     "securitySchemes": {
